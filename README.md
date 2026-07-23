@@ -14,8 +14,8 @@ Following the spec's build order (DESIGN.md §6):
 | 2 | Minimal kiosk app, simulated sensor data | **done** |
 | 3 | RazorpayX payouts | **blocked** — needs RazorpayX credentials |
 | 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
-| 5 | Admin dashboard | next |
-| 6 | Renter accounts, wallet, scoped view | not started |
+| 5 | Admin dashboard | **done** |
+| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login + scoped machine views work; wallet top-up UI and rental billing still to build |
 | 7 | Idle-machine notifications | not started |
 
 **Nobody is paid yet.** An accepted deposit is recorded and priced correctly, but
@@ -43,12 +43,20 @@ uco-recovery-station/
     │       │   ├── kiosk.service.ts      sessions, pairing, offences
     │       │   └── kiosk.controller.ts
     │       └── prisma/
-    └── kiosk/              touchscreen app (Preact + Vite) :5173
-        └── src/
-            ├── app.tsx            screen state machine
-            ├── i18n.ts            phrase table per language
-            ├── TestPanel.tsx      stands in for the ESP32 + a phone
-            └── screens/
+    ├── kiosk/              touchscreen app (Preact + Vite) :5173
+    │   └── src/
+    │       ├── app.tsx            screen state machine
+    │       ├── i18n.ts            phrase table per language
+    │       ├── TestPanel.tsx      stands in for the ESP32 + a phone
+    │       └── screens/
+    └── dashboard/          admin + renter dashboard (Next.js) :3020
+        ├── app/
+        │   ├── login/            sign-in
+        │   ├── (app)/            authenticated routes (machines, depositors)
+        │   └── Shell.tsx         sidebar + client-side auth gate
+        └── lib/
+            ├── api.ts            typed API client + formatting
+            └── status.ts         the distinct out-of-service labels/colours
 ```
 
 The dashboard (`apps/dashboard`) comes next. The phone-side sign-up page that
@@ -107,6 +115,18 @@ Check the whole kiosk flow from the command line (API must be running):
 ```bash
 node apps/api/scripts/flow-check.mjs
 ```
+
+Start the dashboard (**a third Terminal window**, API still running):
+
+```bash
+cd ~/Claude/uco-recovery-station && npm run dev -w @uco/dashboard
+```
+
+Open <http://localhost:3020> and sign in. The admin sees every machine plus the
+depositor roster; a renter sees only their own machine(s) and no depositor list.
+Machine rows show the distinct out-of-service states (drum full, reject full,
+balance depleted, offline) as separate labelled statuses, so you can tell why a
+machine stopped without visiting it.
 
 Reset the database and reload the sample data. **This erases everything in the
 database** and will ask you to type a confirmation first:
@@ -174,5 +194,15 @@ funded renter wallet and an active rental agreement).
 - **The kiosk bundle is deliberately small** (~46 kB, 17 kB gzipped) with a
   legacy build for old Android WebView, because the display is a repurposed
   used tablet. Please keep it that way — no heavy UI libraries.
-- **The API runs on port 3010**, not 3001, to stay clear of the `lifeos` dev
-  server which already uses 3001.
+- **The API runs on port 3010**, the dashboard on **3020**, the kiosk on
+  **5173** — all clear of the `lifeos` dev server on 3001.
+- **All three workspaces are pinned to TypeScript 6.x.** Both the Nest CLI and
+  Next's build-time type check break on TypeScript 7.0 (it dropped the
+  programmatic compiler API). Don't let anything bump it to 7.
+- **Renter scoping is enforced on the backend**, not just hidden in the UI. A
+  renter's token only ever returns their own machines; requesting another
+  machine's id yields 403. The dashboard nav also hides Depositors for renters,
+  but that is cosmetic — the API is the real gate.
+- **The dashboard is auth'd with a JWT in localStorage** and a Bearer header.
+  Fine for this internal tool; if it ever faces the public internet, move the
+  token to an httpOnly cookie.
