@@ -67,6 +67,25 @@ export const api = {
   machine: (id: string) => request<MachineDetail>(`/machines/${id}`),
   depositors: () => request<Depositor[]>('/depositors'),
   depositor: (id: string) => request<DepositorDetail>(`/depositors/${id}`),
+  notifications: () => request<Notification[]>('/notifications'),
+};
+
+export type NotificationType =
+  | 'drum_full'
+  | 'reject_full'
+  | 'balance_zero'
+  | 'idle_7day'
+  | 'offline'
+  | 'blacklist'
+  | 'excessive_ignores'
+  | 'rental_overdue'
+  | 'payout_failed';
+
+export type Notification = {
+  id: string;
+  type: NotificationType;
+  machine: { serialNo: string; label: string | null } | null;
+  createdAt: string;
 };
 
 // ---- shared shapes (money is a string of paise; weight is grams) ----------

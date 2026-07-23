@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MachineStatusService } from '../status/machine-status.service';
 import {
   classify,
   payoutPaise,
@@ -19,7 +20,10 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 @Injectable()
 export class KioskService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly status: MachineStatusService,
+  ) {}
 
   /**
    * Screen 2: the kiosk asks for a session and a QR payload.
@@ -236,7 +240,7 @@ export class KioskService {
         ? payoutPaise(readings.weightDeltaG, machine.ratePerKgPaise)
         : null;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Lock the depositor row: two near-simultaneous rejections must not both
       // read a stale count and skip the blacklist (DESIGN.md §3.5).
       await tx.$queryRaw`SELECT id FROM depositors WHERE id = ${depositorId}::uuid FOR UPDATE`;
@@ -328,9 +332,11 @@ export class KioskService {
       await tx.machine.update({
         where: { id: machine.id },
         data: {
-          ...(countsAsActivity
-            ? { lastActivityAt: new Date(), isIdle: false }
-            : {}),
+          // Record the activity timestamp only; the idle flag and its
+          // notification are derived by MachineStatusService.recompute() after
+          // this transaction, so the idle->active transition is seen (and its
+          // alert resolved) rather than silently overwritten.
+          ...(countsAsActivity ? { lastActivityAt: new Date() } : {}),
           ...(verdict.outcome === 'accepted'
             ? { totalWeightG: { increment: BigInt(readings.weightDeltaG) } }
             : {}),
@@ -360,5 +366,14 @@ export class KioskService {
         payoutStatus: verdict.outcome === 'accepted' ? 'not_implemented' : null,
       };
     });
+
+    // Recompute status after the deposit commits: an accepted/rejected pour
+    // updated lastActivityAt, so a machine that was idle clears its idle flag
+    // and its alert here.
+    if (verdict.outcome !== 'ignored') {
+      await this.status.recompute(machine.id);
+    }
+
+    return result;
   }
 }

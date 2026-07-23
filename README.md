@@ -15,8 +15,8 @@ Following the spec's build order (DESIGN.md §6):
 | 3 | RazorpayX payouts | **blocked** — needs RazorpayX credentials |
 | 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
 | 5 | Admin dashboard | **done** |
-| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login + scoped machine views work; wallet top-up UI and rental billing still to build |
-| 7 | Idle-machine notifications | not started |
+| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login + scoped machine/alert views work; wallet top-up UI and rental billing still to build |
+| 7 | Idle-machine notifications | **done** (built on the §2 status engine: telemetry ingest, scheduled offline/idle sweeps, in-dashboard alerts) |
 
 **Nobody is paid yet.** An accepted deposit is recorded and priced correctly, but
 no payout is sent until step 3. The kiosk shows the finished "Thank You" screen,
@@ -38,10 +38,19 @@ uco-recovery-station/
     │   │   └── flow-check.mjs         end-to-end check of the kiosk flow
     │   └── src/
     │       ├── health.controller.ts
+    │       ├── auth/                  JWT login, guards, role + scope helpers
+    │       ├── machines/              scoped machine list + detail
+    │       ├── depositors/            admin-only depositor roster
     │       ├── kiosk/
     │       │   ├── sensor-classifier.ts  accept/reject decision (pure fn)
     │       │   ├── kiosk.service.ts      sessions, pairing, offences
     │       │   └── kiosk.controller.ts
+    │       ├── status/
+    │       │   ├── effective-status.ts   the §2 state machine (pure fn)
+    │       │   ├── machine-status.service.ts  recompute + notifications
+    │       │   ├── status-sweep.service.ts    scheduled offline/idle sweeps
+    │       │   ├── telemetry.controller.ts    machine → platform relay (§7)
+    │       │   └── notifications.controller.ts
     │       └── prisma/
     ├── kiosk/              touchscreen app (Preact + Vite) :5173
     │   └── src/
@@ -126,7 +135,33 @@ Open <http://localhost:3020> and sign in. The admin sees every machine plus the
 depositor roster; a renter sees only their own machine(s) and no depositor list.
 Machine rows show the distinct out-of-service states (drum full, reject full,
 balance depleted, offline) as separate labelled statuses, so you can tell why a
-machine stopped without visiting it.
+machine stopped without visiting it. Open alerts (offline, idle, drum full, …)
+appear in a panel at the top of every page.
+
+### Keeping dev machines "online"
+
+Machine status is derived from telemetry. A background sweep marks any machine
+**offline** once its last telemetry is older than 5 minutes (configurable in
+`platform_settings.offline_after_seconds`) — correct behaviour, but it means a
+dev machine with nothing posting to it goes offline on its own. To simulate the
+ESP32 heartbeat and keep a machine live while you work:
+
+```bash
+node apps/api/scripts/heartbeat.mjs UCO-0001
+```
+
+You can also push a one-off frame to drive a status change — e.g. fill the drum:
+
+```bash
+curl -s -X POST http://localhost:3010/telemetry/UCO-0001 \
+  -H 'content-type: application/json' -d '{"drumFillPct":98,"rejectFillPct":10}'
+```
+
+Check the machine status state machine in isolation (no server needed):
+
+```bash
+cd apps/api && npm run build && node scripts/status-check.mjs
+```
 
 Reset the database and reload the sample data. **This erases everything in the
 database** and will ask you to type a confirmation first:
@@ -206,3 +241,12 @@ funded renter wallet and an active rental agreement).
 - **The dashboard is auth'd with a JWT in localStorage** and a Bearer header.
   Fine for this internal tool; if it ever faces the public internet, move the
   token to an httpOnly cookie.
+- **The `/telemetry/:serialNo` ingest endpoint is unauthenticated.** Before any
+  real deployment each machine needs a device credential (shared secret or mTLS)
+  so telemetry — which drives machine status — can't be spoofed. Flagged in the
+  controller.
+- **Machine status is always derived, never set by hand.** `deriveStatus()` is
+  the single source of truth (offline > drum_full > reject_full > balance_zero >
+  in_service, with idle as a separate overlay). If a status ever looks wrong,
+  fix the inputs (telemetry, wallet, activity) or that function — don't UPDATE
+  the column directly.

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth, type SessionUser } from '../lib/api';
+import { Alerts } from './Alerts';
 
 /**
  * Client-side auth gate + navigation chrome. Real enforcement is on the API
@@ -65,7 +66,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        <Alerts />
+        {children}
+      </main>
     </div>
   );
 }
