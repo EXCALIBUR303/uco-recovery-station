@@ -11,12 +11,16 @@ Following the spec's build order (DESIGN.md §6):
 | # | Step | Status |
 |---|---|---|
 | 1 | Core data model — machines, users, transactions, offences | **done** |
-| 2 | Minimal kiosk app, simulated sensor data | next |
-| 3 | RazorpayX payouts | not started |
-| 4 | Offence counting + blacklist logic | not started |
-| 5 | Admin dashboard | not started |
+| 2 | Minimal kiosk app, simulated sensor data | **done** |
+| 3 | RazorpayX payouts | **blocked** — needs RazorpayX credentials |
+| 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
+| 5 | Admin dashboard | next |
 | 6 | Renter accounts, wallet, scoped view | not started |
 | 7 | Idle-machine notifications | not started |
+
+**Nobody is paid yet.** An accepted deposit is recorded and priced correctly, but
+no payout is sent until step 3. The kiosk shows the finished "Thank You" screen,
+so do not demo this to anyone as a working payment.
 
 ## Layout
 
@@ -24,20 +28,31 @@ Following the spec's build order (DESIGN.md §6):
 uco-recovery-station/
 ├── DESIGN.md               design doc — schema, state machine, fraud flow
 └── apps/
-    └── api/                shared backend (NestJS + Prisma + Postgres)
-        ├── prisma/
-        │   ├── schema.prisma          the data model
-        │   ├── migrations/            applied SQL migrations
-        │   ├── seed.ts                dev fixtures
-        │   └── verify-invariants.sql  proves the DB refuses bad states
+    ├── api/                shared backend (NestJS + Prisma + Postgres) :3010
+    │   ├── prisma/
+    │   │   ├── schema.prisma          the data model
+    │   │   ├── migrations/            applied SQL migrations
+    │   │   ├── seed.ts                dev fixtures
+    │   │   └── verify-invariants.sql  proves the DB refuses bad states
+    │   ├── scripts/
+    │   │   └── flow-check.mjs         end-to-end check of the kiosk flow
+    │   └── src/
+    │       ├── health.controller.ts
+    │       ├── kiosk/
+    │       │   ├── sensor-classifier.ts  accept/reject decision (pure fn)
+    │       │   ├── kiosk.service.ts      sessions, pairing, offences
+    │       │   └── kiosk.controller.ts
+    │       └── prisma/
+    └── kiosk/              touchscreen app (Preact + Vite) :5173
         └── src/
-            ├── main.ts
-            ├── app.module.ts
-            ├── health.controller.ts
-            └── prisma/
+            ├── app.tsx            screen state machine
+            ├── i18n.ts            phrase table per language
+            ├── TestPanel.tsx      stands in for the ESP32 + a phone
+            └── screens/
 ```
 
-The kiosk (`apps/kiosk`) and dashboard (`apps/dashboard`) apps come next.
+The dashboard (`apps/dashboard`) comes next. The phone-side sign-up page that
+the QR code points at is **not built yet** — use the kiosk's test panel.
 
 ## One-time setup
 
@@ -72,8 +87,26 @@ Start the API (leave it running; press `Ctrl+C` to stop):
 npm run dev:api
 ```
 
-Then open <http://localhost:3001/health> in your browser — it reports the row
+Then open <http://localhost:3010/health> in your browser — it reports the row
 counts and current platform settings.
+
+Start the kiosk app (**in a second Terminal window**, leaving the API running):
+
+```bash
+cd ~/Claude/uco-recovery-station && npm run dev -w @uco/kiosk
+```
+
+Open <http://localhost:5173>. Drive the whole flow from the test panel along the
+bottom: pick a language, **Simulate phone scan**, then one of the pour presets.
+Each preset targets a different branch of the sensor logic — clean oil pays out,
+water is rejected as "not oil", and a 40 g drip is ignored entirely. Three
+rejections in a row on one account triggers the blacklist.
+
+Check the whole kiosk flow from the command line (API must be running):
+
+```bash
+node apps/api/scripts/flow-check.mjs
+```
 
 Reset the database and reload the sample data. **This erases everything in the
 database** and will ask you to type a confirmation first:
@@ -135,3 +168,11 @@ funded renter wallet and an active rental agreement).
   Most tutorials online still show the Prisma 6 style.
 - **TypeScript is pinned to 6.x** — the Nest CLI cannot build against
   TypeScript 7.0, which dropped the programmatic compiler API.
+- **Sensor thresholds in `platform_settings` are placeholders.** The real
+  numbers come from the hardware calibration process. Nothing about the
+  classifier is trustworthy until those are measured on the real sensors.
+- **The kiosk bundle is deliberately small** (~46 kB, 17 kB gzipped) with a
+  legacy build for old Android WebView, because the display is a repurposed
+  used tablet. Please keep it that way — no heavy UI libraries.
+- **The API runs on port 3010**, not 3001, to stay clear of the `lifeos` dev
+  server which already uses 3001.

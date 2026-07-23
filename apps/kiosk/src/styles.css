@@ -1,0 +1,218 @@
+/* Kiosk styling for a used tablet: big targets, high contrast, no animation
+   libraries, and no flexbox `gap` (unsupported on the old Chrome/WebView
+   versions this must run on — margins are used instead). */
+
+:root {
+  --bg: #10130f;
+  --panel: #1b201a;
+  --line: #2f3a2c;
+  --text: #f2f5f0;
+  --muted: #9aa695;
+  --accent: #7ac943;
+  --accent-dark: #4e8f22;
+  --danger: #ff6b52;
+  --warn: #ffc046;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 20px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+h1 {
+  font-size: 2.6rem;
+  line-height: 1.15;
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 1.6rem;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  max-width: 22em;
+}
+
+.big-btn {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  min-height: 84px;
+  margin: 0 0 16px;
+  padding: 18px 24px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.big-btn:active {
+  background: var(--accent-dark);
+  border-color: var(--accent);
+}
+
+.qr-frame {
+  background: #fff;
+  padding: 16px;
+  border-radius: 16px;
+  margin: 0 0 20px;
+  line-height: 0;
+}
+
+.qr-frame svg {
+  display: block;
+  width: 240px;
+  height: 240px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 20px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.amount {
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin: 6px 0 4px;
+}
+
+.mark {
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.4rem;
+  margin: 0 0 20px;
+  border: 4px solid currentColor;
+}
+
+.mark.ok {
+  color: var(--accent);
+}
+
+.mark.bad {
+  color: var(--danger);
+}
+
+.mark.wait {
+  color: var(--warn);
+}
+
+.warning {
+  margin: 22px 0 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 1rem;
+  max-width: 26em;
+}
+
+.spinner {
+  width: 64px;
+  height: 64px;
+  border: 6px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 0 22px;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- test panel: stands in for the ESP32 until hardware exists ---- */
+.test-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0a0c09;
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.test-panel .label {
+  color: #6f7a6a;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+  margin: 0 0 8px;
+}
+
+.test-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.test-btn {
+  margin: 0 8px 8px 0;
+  padding: 9px 13px;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: #1b201a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.test-btn:active {
+  background: var(--accent-dark);
+}
+
+.muted-small {
+  color: #6f7a6a;
+  font-size: 0.78rem;
+  margin: 0;
+}

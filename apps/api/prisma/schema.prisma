@@ -59,6 +59,17 @@ enum DepositOutcome {
   @@map("deposit_outcome")
 }
 
+/// Lifecycle of one person's visit to the kiosk.
+enum KioskSessionState {
+  awaiting_pair // QR on screen, nobody scanned yet
+  paired // phone connected, waiting for the pour
+  processing // sensors evaluating
+  complete // result shown
+  expired // timed out or abandoned
+
+  @@map("kiosk_session_state")
+}
+
 enum RejectionReason {
   not_oil // capacitance: no oil signature at all
   water_contaminated // capacitance: water above threshold
@@ -345,7 +356,25 @@ model PlatformSettings {
   offlineAfterSeconds      Int      @default(300) @map("offline_after_seconds")
   /// Q5: grace period on unpaid rental before suspension
   rentalGraceDays          Int      @default(7) @map("rental_grace_days")
-  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // -- sensor calibration -------------------------------------------------
+  // PLACEHOLDER values. The real numbers come from the calibration process in
+  // the hardware reference doc (§3.4). They live here rather than in firmware
+  // or kiosk JS precisely because spec §5 requires the accept/reject decision
+  // to be consistent fleet-wide and retunable in one place.
+  //
+  // Capacitance rises with water content (water permittivity ~80, oil ~3):
+  //   < capOilMin ................................ not oil
+  //   capOilMin..capOilMax ....................... clean oil, continue to colour
+  //   capOilMax..capContaminatedMax .............. oil with water above threshold
+  //   > capContaminatedMax ....................... not oil (e.g. straight water)
+  capOilMin          Float @default(2.5) @map("cap_oil_min")
+  capOilMax          Float @default(6.0) @map("cap_oil_max")
+  capContaminatedMax Float @default(20.0) @map("cap_contaminated_max")
+  /// colour reading 0-255; darker than this reads as burnt / degraded
+  colorQualityMin    Float @default(60) @map("color_quality_min")
+
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("platform_settings")
 }
@@ -355,14 +384,19 @@ model PlatformSettings {
 /// One row per kiosk visit. The short-lived QR pairing token itself lives in
 /// Redis (few-minute TTL, single use); this is the durable record.
 model KioskSession {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  machineId   String    @map("machine_id") @db.Uuid
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  machineId   String            @map("machine_id") @db.Uuid
   /// null until a phone pairs via QR
-  depositorId String?   @map("depositor_id") @db.Uuid
+  depositorId String?           @map("depositor_id") @db.Uuid
   language    String?
-  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
-  pairedAt    DateTime? @map("paired_at") @db.Timestamptz(6)
-  endedAt     DateTime? @map("ended_at") @db.Timestamptz(6)
+  state       KioskSessionState @default(awaiting_pair)
+  /// QR pairing token. DESIGN.md puts this in Redis; until Redis is introduced
+  /// it lives here, hashed, with a short expiry. Single use.
+  pairTokenHash String?         @unique @map("pair_token_hash")
+  pairExpiresAt DateTime?       @map("pair_expires_at") @db.Timestamptz(6)
+  startedAt   DateTime          @default(now()) @map("started_at") @db.Timestamptz(6)
+  pairedAt    DateTime?         @map("paired_at") @db.Timestamptz(6)
+  endedAt     DateTime?         @map("ended_at") @db.Timestamptz(6)
 
   machine   Machine    @relation(fields: [machineId], references: [id])
   depositor Depositor? @relation(fields: [depositorId], references: [id])

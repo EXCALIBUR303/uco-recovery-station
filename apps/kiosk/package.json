@@ -1,0 +1,23 @@
+{
+  "name": "@uco/kiosk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Touchscreen app running on the machine. Built light for used tablets.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@vitejs/plugin-legacy": "^8.2.2",
+    "terser": "^5.49.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  },
+  "dependencies": {
+    "preact": "^10.29.7",
+    "qrcode-generator": "^2.0.4"
+  }
+}

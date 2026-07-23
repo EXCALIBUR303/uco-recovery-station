@@ -98,6 +98,11 @@ async function main() {
       fundingWalletId: companyWallet.id,
       ratePerKgPaise: rupees(35), // ₹35/kg
       deployedAt: new Date(),
+      // pretend the machine has just checked in, so the kiosk flow is usable
+      effectiveStatus: 'in_service',
+      lastTelemetryAt: new Date(),
+      drumFillPct: 12,
+      rejectFillPct: 4,
     },
   });
 
@@ -115,6 +120,10 @@ async function main() {
       // per-machine override of the ignore threshold (open question Q3)
       minWeightDeltaG: 150,
       deployedAt: new Date(),
+      effectiveStatus: 'in_service',
+      lastTelemetryAt: new Date(),
+      drumFillPct: 63,
+      rejectFillPct: 20,
     },
   });
 
