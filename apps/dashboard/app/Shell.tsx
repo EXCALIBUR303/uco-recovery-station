@@ -35,6 +35,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { href: '/', label: 'Machines' },
     // Depositor roster is admin-only (spec §8 vs §9.2).
     ...(user.role === 'admin' ? [{ href: '/depositors', label: 'Depositors' }] : []),
+    // Both roles see billing; renters see only their own agreements.
+    { href: '/rentals', label: user.role === 'admin' ? 'Rentals' : 'Billing' },
   ];
 
   const isActive = (href: string) =>

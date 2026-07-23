@@ -15,8 +15,13 @@ Following the spec's build order (DESIGN.md §6):
 | 3 | RazorpayX payouts | **blocked** — needs RazorpayX credentials |
 | 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
 | 5 | Admin dashboard | **done** |
-| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login + scoped machine/alert views work; wallet top-up UI and rental billing still to build |
+| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login, scoped views, and rental billing (flat fee) all work; the payout **wallet top-up** UI still needs Razorpay Checkout (blocked, see step 3) |
 | 7 | Idle-machine notifications | **done** (built on the §2 status engine: telemetry ingest, scheduled offline/idle sweeps, in-dashboard alerts) |
+
+Rental billing (open-question Q5, the flat monthly fee) is done: monthly invoice
+generation, grace-then-suspend on arrears, overdue alerts, and manual payment
+recording. What's left of step 6 is the renter *payout wallet* top-up, which
+needs the same Razorpay integration as step 3.
 
 **Nobody is paid yet.** An accepted deposit is recorded and priced correctly, but
 no payout is sent until step 3. The kiosk shows the finished "Thank You" screen,
@@ -163,6 +168,31 @@ Check the machine status state machine in isolation (no server needed):
 cd apps/api && npm run build && node scripts/status-check.mjs
 ```
 
+### Trying rental billing
+
+Invoices generate on a daily cron, so a freshly seeded agreement (which starts
+"today") has none yet. To see the billing flow now, backdate the agreement and
+run the cycle as an admin. Get a token first:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3010/auth/login -H 'content-type: application/json' \
+  -d '{"email":"admin@uco.local","password":"admin12345"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+```
+
+Then trigger billing "as of" a date a couple of months after the agreement
+started — the catch-up loop emits one invoice per elapsed month, ages the ones
+past grace to overdue, and suspends the agreement:
+
+```bash
+curl -s -X POST http://localhost:3010/rentals/run-billing \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"now":"2026-10-01T00:00:00Z"}'
+```
+
+Open the **Rentals** tab (admin) or **Billing** tab (renter) to see the
+invoices. As admin, "Mark paid" records a payment; clearing all arrears lifts
+the suspension and resolves the overdue alert.
+
 Reset the database and reload the sample data. **This erases everything in the
 database** and will ask you to type a confirmation first:
 
@@ -249,4 +279,12 @@ funded renter wallet and an active rental agreement).
   the single source of truth (offline > drum_full > reject_full > balance_zero >
   in_service, with idle as a separate overlay). If a status ever looks wrong,
   fix the inputs (telemetry, wallet, activity) or that function — don't UPDATE
-  the column directly.
+  the column directly. (Same goes for `is_idle`: setting it by hand orphans the
+  idle alert, because recompute only fires/resolves on a transition.)
+- **Rental billing and the payout wallet are two separate money streams**
+  (open-question Q5). The flat monthly rent is company revenue in
+  `rental_invoices`; it never touches the ledger or the payout wallet. A
+  suspended rental (arrears past grace) raises an alert and shows on the
+  dashboard but does **not** stop the machine — machine operation stays tied to
+  the payout wallet balance. Whether unpaid rent should also disable the machine
+  is a policy decision left for you.

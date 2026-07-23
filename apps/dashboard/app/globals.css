@@ -490,3 +490,23 @@ input:focus {
   font-size: 0.8rem;
   margin-left: 12px;
 }
+
+.mini-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line-solid);
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.mini-btn:hover:not(:disabled) {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.mini-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

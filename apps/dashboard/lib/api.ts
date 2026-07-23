@@ -68,6 +68,35 @@ export const api = {
   depositors: () => request<Depositor[]>('/depositors'),
   depositor: (id: string) => request<DepositorDetail>(`/depositors/${id}`),
   notifications: () => request<Notification[]>('/notifications'),
+  rentals: () => request<RentalAgreementRow[]>('/rentals'),
+  payInvoice: (id: string) =>
+    request<{ paid?: boolean; alreadyPaid?: boolean }>(`/rentals/invoices/${id}/pay`, {
+      method: 'POST',
+    }),
+};
+
+export type InvoiceStatus = 'due' | 'paid' | 'overdue' | 'waived';
+
+export type RentalInvoice = {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  amountPaise: string;
+  status: InvoiceStatus;
+  dueDate: string;
+  paidAt: string | null;
+};
+
+export type RentalAgreementRow = {
+  id: string;
+  machine: { serialNo: string; label: string | null };
+  renter: { id: string; displayName: string } | null;
+  status: 'active' | 'suspended' | 'terminated';
+  monthlyFeePaise: string;
+  startDate: string;
+  nextBillDate: string;
+  outstandingPaise: string;
+  invoices: RentalInvoice[];
 };
 
 export type NotificationType =
@@ -168,10 +197,21 @@ export const kg = (grams: string | number | null): string => {
   return `${(Number(grams) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
 };
 
+export const date = (iso: string | null): string => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 export const ago = (iso: string | null): string => {
   if (!iso) return 'never';
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `${s}s ago`;
+  // A future timestamp (clock skew, or a synthetic billing "now") shouldn't
+  // render as a negative age.
+  if (s < 60) return 'just now';
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;

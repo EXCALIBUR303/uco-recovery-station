@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { MachinesModule } from './machines/machines.module';
 import { DepositorsModule } from './depositors/depositors.module';
 import { StatusModule } from './status/status.module';
+import { RentalsModule } from './rentals/rentals.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { StatusModule } from './status/status.module';
     MachinesModule,
     DepositorsModule,
     StatusModule,
+    RentalsModule,
   ],
   controllers: [HealthController],
 })
