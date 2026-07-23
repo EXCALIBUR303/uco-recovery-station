@@ -1,0 +1,577 @@
+// UCO Recovery Station — data model
+// Implements DESIGN.md §1. Table/column names are snake_case in Postgres via
+// @map/@@map; the TypeScript client uses camelCase.
+//
+// Conventions:
+//   - money  : BigInt paise (INR). Never floats.
+//   - weight : Int grams.
+//   - time   : timestamptz.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: the connection URL lives in prisma.config.ts, not here.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enums
+
+enum DashboardRole {
+  admin
+  renter
+
+  @@map("dashboard_role")
+}
+
+enum DepositorStatus {
+  active
+  blacklisted
+
+  @@map("depositor_status")
+}
+
+enum MachineOwnership {
+  company
+  rented
+
+  @@map("machine_ownership")
+}
+
+/// The single displayed operating state. Derived via the precedence rule in
+/// DESIGN.md §2.2: offline > drum_full > reject_full > balance_zero > in_service.
+enum MachineEffectiveStatus {
+  in_service
+  drum_full
+  reject_full
+  balance_zero
+  offline
+
+  @@map("machine_effective_status")
+}
+
+enum DepositOutcome {
+  accepted
+  rejected
+  ignored
+
+  @@map("deposit_outcome")
+}
+
+enum RejectionReason {
+  not_oil // capacitance: no oil signature at all
+  water_contaminated // capacitance: water above threshold
+  low_quality // colour sensor: burnt / foreign liquid
+  below_threshold // weight delta under minimum -> outcome 'ignored', NOT an offence
+
+  @@map("rejection_reason")
+}
+
+enum WalletOwnerType {
+  renter
+  company
+
+  @@map("wallet_owner_type")
+}
+
+enum LedgerReason {
+  topup
+  payout_hold
+  payout_capture
+  payout_release
+  rental_fee
+  adjustment
+  reversal
+
+  @@map("ledger_reason")
+}
+
+enum TopupStatus {
+  created
+  succeeded
+  failed
+
+  @@map("topup_status")
+}
+
+enum PayoutStatus {
+  pending
+  processing
+  succeeded
+  failed
+  reversed
+
+  @@map("payout_status")
+}
+
+enum AgreementStatus {
+  active
+  suspended
+  terminated
+
+  @@map("agreement_status")
+}
+
+enum InvoiceStatus {
+  due
+  paid
+  overdue
+  waived
+
+  @@map("invoice_status")
+}
+
+enum NotificationType {
+  drum_full
+  reject_full
+  balance_zero
+  idle_7day
+  offline
+  blacklist
+  excessive_ignores
+  rental_overdue
+  payout_failed
+
+  @@map("notification_type")
+}
+
+// ------------------------------------------------- 1.1 identity & access
+
+/// Dashboard logins: company admins and machine renters. One app, two roles
+/// (spec §2, §9.2) — scoping is enforced server-side, not in the UI.
+model DashboardUser {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role         DashboardRole
+  /// stored lowercased; uniqueness is therefore case-insensitive in practice
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  displayName  String        @map("display_name")
+  phone        String?
+  isActive     Boolean       @default(true) @map("is_active")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  machines         Machine[]
+  rentalAgreements RentalAgreement[]
+  liftedBlacklists BlacklistedUpi[]
+  notifications    Notification[]
+
+  @@map("dashboard_users")
+}
+
+/// Depositors: the people pouring oil. Identified by phone, paid via UPI.
+/// They never have a password — the kiosk flow is QR + device recognition.
+model Depositor {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone           String          @unique
+  upiId           String          @map("upi_id")
+  upiVerifiedAt   DateTime?       @map("upi_verified_at") @db.Timestamptz(6)
+  status          DepositorStatus @default(active)
+  /// cached; source of truth is deposits where is_offence = true (DESIGN.md §3.1)
+  offenceCount    Int             @default(0) @map("offence_count")
+  /// sub-threshold pours: never an offence, but tracked as an abuse signal
+  ignoredCount    Int             @default(0) @map("ignored_count")
+  blacklistedAt   DateTime?       @map("blacklisted_at") @db.Timestamptz(6)
+  blacklistReason String?         @map("blacklist_reason")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  devices         DepositorDevice[]
+  sessions        KioskSession[]
+  deposits        Deposit[]
+  payouts         Payout[]
+  statusEvents    AccountStatusEvent[]
+  blacklistedUpis BlacklistedUpi[]
+  notifications   Notification[]
+
+  @@map("depositors")
+}
+
+/// Blacklist is enforced on the UPI ID itself, so a blacklisted user cannot
+/// re-register a fresh account against the same UPI. Checked at sign-up AND
+/// at QR pairing (DESIGN.md §3.4).
+model BlacklistedUpi {
+  upiId         String    @id @map("upi_id")
+  depositorId   String?   @map("depositor_id") @db.Uuid
+  reason        String?
+  blacklistedAt DateTime  @default(now()) @map("blacklisted_at") @db.Timestamptz(6)
+  /// only populated when an appeal/reset path is enabled (open question Q1)
+  liftedAt      DateTime? @map("lifted_at") @db.Timestamptz(6)
+  liftedBy      String?   @map("lifted_by") @db.Uuid
+
+  depositor    Depositor?     @relation(fields: [depositorId], references: [id])
+  liftedByUser DashboardUser? @relation(fields: [liftedBy], references: [id])
+
+  @@map("blacklisted_upis")
+}
+
+/// Returning-user auto-connect (spec §3.4): "a single tap, not a login".
+/// A high-entropy token lives in the depositor's own phone localStorage and is
+/// presented when the QR link opens. Never stored on the kiosk.
+model DepositorDevice {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  depositorId     String    @map("depositor_id") @db.Uuid
+  deviceTokenHash String    @unique @map("device_token_hash")
+  userAgent       String?   @map("user_agent")
+  lastSeenAt      DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  depositor Depositor @relation(fields: [depositorId], references: [id])
+
+  @@index([depositorId])
+  @@map("depositor_devices")
+}
+
+/// Immutable audit of depositor status changes (blacklist / reinstate).
+model AccountStatusEvent {
+  id          BigInt           @id @default(autoincrement())
+  depositorId String           @map("depositor_id") @db.Uuid
+  fromStatus  DepositorStatus? @map("from_status")
+  toStatus    DepositorStatus  @map("to_status")
+  reason      String?
+  /// 'system:offence_threshold' | 'admin:<uuid>'
+  triggeredBy String           @map("triggered_by")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  depositor Depositor @relation(fields: [depositorId], references: [id])
+
+  @@index([depositorId, createdAt])
+  @@map("account_status_events")
+}
+
+// ------------------------------------------ 1.2 machines, config, telemetry
+
+model Machine {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serialNo     String   @unique @map("serial_no")
+  label        String?
+  locationText String?  @map("location_text")
+  geoLat       Decimal? @map("geo_lat") @db.Decimal(9, 6)
+  geoLng       Decimal? @map("geo_lng") @db.Decimal(9, 6)
+
+  ownership       MachineOwnership @default(company)
+  /// null when company-owned
+  renterId        String?          @map("renter_id") @db.Uuid
+  /// which wallet funds payouts here: the renter's, or the company wallet
+  fundingWalletId String?          @map("funding_wallet_id") @db.Uuid
+
+  ratePerKgPaise BigInt @map("rate_per_kg_paise")
+  /// open question Q3 — per-machine override; null falls back to platform default
+  minWeightDeltaG Int?  @map("min_weight_delta_g")
+
+  // Latest telemetry snapshot, denormalised for fast dashboard reads.
+  // Full history lives in telemetry_snapshots.
+  drumFillPct     Int?                   @map("drum_fill_pct") @db.SmallInt
+  rejectFillPct   Int?                   @map("reject_fill_pct") @db.SmallInt
+  effectiveStatus MachineEffectiveStatus @default(offline) @map("effective_status")
+  /// 7-day idle overlay — a flag, never a state that replaces the others
+  isIdle          Boolean                @default(false) @map("is_idle")
+  lastTelemetryAt DateTime?              @map("last_telemetry_at") @db.Timestamptz(6)
+  lastActivityAt  DateTime?              @map("last_activity_at") @db.Timestamptz(6)
+  firmwareVersion String?                @map("firmware_version")
+
+  totalWeightG      BigInt @default(0) @map("total_weight_g")
+  totalPaidOutPaise BigInt @default(0) @map("total_paid_out_paise")
+
+  deployedAt DateTime? @map("deployed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  renter        DashboardUser?       @relation(fields: [renterId], references: [id])
+  fundingWallet Wallet?              @relation(fields: [fundingWalletId], references: [id])
+  telemetry     TelemetrySnapshot[]
+  statusEvents  MachineStatusEvent[]
+  sessions      KioskSession[]
+  deposits      Deposit[]
+  agreements    RentalAgreement[]
+  notifications Notification[]
+
+  @@index([effectiveStatus])
+  @@index([renterId])
+  @@map("machines")
+}
+
+/// Time-series telemetry. High write volume — partition by month and prune
+/// per retention policy once volume justifies it (later migration).
+model TelemetrySnapshot {
+  machineId     String   @map("machine_id") @db.Uuid
+  ts            DateTime @db.Timestamptz(6)
+  drumFillPct   Int?     @map("drum_fill_pct") @db.SmallInt
+  rejectFillPct Int?     @map("reject_fill_pct") @db.SmallInt
+  online        Boolean
+  /// full telemetry frame as received
+  raw           Json?
+
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@id([machineId, ts])
+  @@map("telemetry_snapshots")
+}
+
+/// Audit of every machine status transition, so a remote technician can see
+/// history without visiting the site.
+model MachineStatusEvent {
+  id         BigInt                  @id @default(autoincrement())
+  machineId  String                  @map("machine_id") @db.Uuid
+  fromStatus MachineEffectiveStatus? @map("from_status")
+  toStatus   MachineEffectiveStatus  @map("to_status")
+  /// 'telemetry:drum_full' | 'wallet:balance_zero' | ...
+  reason     String
+  createdAt  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@index([machineId, createdAt])
+  @@map("machine_status_events")
+}
+
+/// Global tunables. Single row, enforced by `id` being a boolean CHECKed true.
+/// These live here (not in firmware or kiosk JS) precisely because spec §5
+/// requires thresholds to be updatable in one place for the whole fleet.
+model PlatformSettings {
+  id                       Boolean  @id @default(true)
+  /// Q3: minimum weight change below which an attempt is ignored entirely
+  defaultMinWeightDeltaG   Int      @default(100) @map("default_min_weight_delta_g")
+  /// offences before a UPI is blacklisted
+  blacklistThreshold       Int      @default(3) @map("blacklist_threshold")
+  /// Q1: 'permanent' | 'appealable' | 'auto_reset'
+  blacklistMode            String   @default("permanent") @map("blacklist_mode")
+  blacklistAutoResetDays   Int?     @map("blacklist_auto_reset_days")
+  idleAlertDays            Int      @default(7) @map("idle_alert_days")
+  /// Q2: does a rejected attempt reset the idle clock, or only accepted deposits?
+  activityCountsRejections Boolean  @default(true) @map("activity_counts_rejections")
+  /// heartbeat gap after which a machine is considered offline
+  offlineAfterSeconds      Int      @default(300) @map("offline_after_seconds")
+  /// Q5: grace period on unpaid rental before suspension
+  rentalGraceDays          Int      @default(7) @map("rental_grace_days")
+  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_settings")
+}
+
+// -------------------------------------------- 1.3 kiosk sessions & deposits
+
+/// One row per kiosk visit. The short-lived QR pairing token itself lives in
+/// Redis (few-minute TTL, single use); this is the durable record.
+model KioskSession {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  machineId   String    @map("machine_id") @db.Uuid
+  /// null until a phone pairs via QR
+  depositorId String?   @map("depositor_id") @db.Uuid
+  language    String?
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  pairedAt    DateTime? @map("paired_at") @db.Timestamptz(6)
+  endedAt     DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  machine   Machine    @relation(fields: [machineId], references: [id])
+  depositor Depositor? @relation(fields: [depositorId], references: [id])
+  deposits  Deposit[]
+
+  @@index([machineId, startedAt])
+  @@map("kiosk_sessions")
+}
+
+/// Every deposit attempt: accepted, rejected, or ignored. This is both the
+/// transaction log required by spec §6 and the source of truth for offences.
+model Deposit {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String @map("session_id") @db.Uuid
+  machineId   String @map("machine_id") @db.Uuid
+  depositorId String @map("depositor_id") @db.Uuid
+
+  outcome         DepositOutcome
+  /// non-null whenever outcome != accepted
+  rejectionReason RejectionReason? @map("rejection_reason")
+  /// true only for accountable rejections — never for 'ignored'
+  isOffence       Boolean          @default(false) @map("is_offence")
+
+  weightDeltaG   Int     @map("weight_delta_g")
+  /// rate snapshotted at deposit time, so later rate changes don't rewrite history
+  ratePerKgPaise BigInt? @map("rate_per_kg_paise")
+  amountPaise    BigInt? @map("amount_paise")
+
+  /// full raw readings behind the decision (spec §6 logging requirement)
+  sensorReadings Json    @map("sensor_readings")
+  /// which wallet funded the payout
+  fundedWalletId String? @map("funded_wallet_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session      KioskSession @relation(fields: [sessionId], references: [id])
+  machine      Machine      @relation(fields: [machineId], references: [id])
+  depositor    Depositor    @relation(fields: [depositorId], references: [id])
+  fundedWallet Wallet?      @relation(fields: [fundedWalletId], references: [id])
+  /// 1:1 — the FK lives on payouts.deposit_id
+  payout       Payout?
+
+  @@index([depositorId, createdAt])
+  @@index([machineId, createdAt])
+  @@index([outcome, createdAt])
+  @@map("deposits")
+}
+
+// --------------------------------- 1.4 money: wallets, ledger, payouts, rental
+
+/// Renter payout wallets + one company wallet. `balancePaise` is a cache
+/// reconciled from ledger_postings; `heldPaise` is reserved for in-flight payouts.
+model Wallet {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerType    WalletOwnerType @map("owner_type")
+  /// renter's dashboard_user id; null for the single company wallet
+  ownerId      String?         @map("owner_id") @db.Uuid
+  balancePaise BigInt          @default(0) @map("balance_paise")
+  heldPaise    BigInt          @default(0) @map("held_paise")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  machines Machine[]
+  postings LedgerPosting[]
+  topups   WalletTopup[]
+  payouts  Payout[]
+  deposits Deposit[]
+
+  @@unique([ownerType, ownerId])
+  @@map("wallets")
+}
+
+/// A journal entry = one financial event. Its postings must net to zero.
+model LedgerJournal {
+  id        BigInt       @id @default(autoincrement())
+  reason    LedgerReason
+  /// 'payout' | 'topup' | 'rental_invoice' | ...
+  refType   String?      @map("ref_type")
+  refId     String?      @map("ref_id") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  postings LedgerPosting[]
+  topups   WalletTopup[]
+
+  @@map("ledger_journal")
+}
+
+model LedgerPosting {
+  id           BigInt   @id @default(autoincrement())
+  journalId    BigInt   @map("journal_id")
+  walletId     String   @map("wallet_id") @db.Uuid
+  /// +credit / -debit
+  amountPaise  BigInt   @map("amount_paise")
+  /// running balance for this wallet after applying this posting
+  balanceAfter BigInt   @map("balance_after")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  journal LedgerJournal @relation(fields: [journalId], references: [id])
+  wallet  Wallet        @relation(fields: [walletId], references: [id])
+
+  @@index([walletId, id])
+  @@map("ledger_postings")
+}
+
+/// Renter top-ups via Razorpay Checkout.
+model WalletTopup {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId          String      @map("wallet_id") @db.Uuid
+  amountPaise       BigInt      @map("amount_paise")
+  status            TopupStatus @default(created)
+  razorpayOrderId   String?     @unique @map("razorpay_order_id")
+  razorpayPaymentId String?     @map("razorpay_payment_id")
+  journalId         BigInt?     @map("journal_id")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  wallet  Wallet         @relation(fields: [walletId], references: [id])
+  journal LedgerJournal? @relation(fields: [journalId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@map("wallet_topups")
+}
+
+/// Depositor payouts via RazorpayX. Hold -> capture/release (DESIGN.md §3.6):
+/// the Thank-You screen shows at `processing`, not at `succeeded`.
+model Payout {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  depositId    String @unique @map("deposit_id") @db.Uuid
+  depositorId  String @map("depositor_id") @db.Uuid
+  /// funding source
+  walletId     String @map("wallet_id") @db.Uuid
+  /// snapshotted at payout time, so a later UPI change doesn't rewrite history
+  upiId        String @map("upi_id")
+  amountPaise  BigInt @map("amount_paise")
+
+  status          PayoutStatus @default(pending)
+  /// RazorpayX dedupe — safe retries
+  idempotencyKey  String       @unique @map("idempotency_key")
+  razorpayxPayoutId String?    @map("razorpayx_payout_id")
+  failureReason   String?      @map("failure_reason")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  deposit   Deposit   @relation(fields: [depositId], references: [id])
+  depositor Depositor @relation(fields: [depositorId], references: [id])
+  wallet    Wallet    @relation(fields: [walletId], references: [id])
+
+  @@index([status, createdAt])
+  @@map("payouts")
+}
+
+/// Q5 stream (a): flat monthly rental. Deliberately independent of the payout
+/// wallet — billing continues regardless of machine activity.
+model RentalAgreement {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  renterId        String          @map("renter_id") @db.Uuid
+  machineId       String          @map("machine_id") @db.Uuid
+  monthlyFeePaise BigInt          @map("monthly_fee_paise")
+  status          AgreementStatus @default(active)
+  startDate       DateTime        @map("start_date") @db.Date
+  endDate         DateTime?       @map("end_date") @db.Date
+  nextBillDate    DateTime        @map("next_bill_date") @db.Date
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  renter   DashboardUser   @relation(fields: [renterId], references: [id])
+  machine  Machine         @relation(fields: [machineId], references: [id])
+  invoices RentalInvoice[]
+
+  @@index([renterId])
+  @@map("rental_agreements")
+}
+
+model RentalInvoice {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agreementId String        @map("agreement_id") @db.Uuid
+  periodStart DateTime      @map("period_start") @db.Date
+  periodEnd   DateTime      @map("period_end") @db.Date
+  amountPaise BigInt        @map("amount_paise")
+  status      InvoiceStatus @default(due)
+  dueDate     DateTime      @map("due_date") @db.Date
+  paidAt      DateTime?     @map("paid_at") @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  agreement RentalAgreement @relation(fields: [agreementId], references: [id])
+
+  @@index([agreementId, periodStart])
+  @@map("rental_invoices")
+}
+
+// ------------------------------------------------ 1.5 notifications / alerts
+
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        NotificationType
+  machineId   String?          @map("machine_id") @db.Uuid
+  depositorId String?          @map("depositor_id") @db.Uuid
+  /// who should see it
+  targetRole  DashboardRole    @map("target_role")
+  /// null = every user of that role (e.g. all admins)
+  targetUser  String?          @map("target_user") @db.Uuid
+  payload     Json?
+  resolvedAt  DateTime?        @map("resolved_at") @db.Timestamptz(6)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  machine        Machine?       @relation(fields: [machineId], references: [id])
+  depositor      Depositor?     @relation(fields: [depositorId], references: [id])
+  targetUserRef  DashboardUser? @relation(fields: [targetUser], references: [id])
+
+  @@index([targetRole, resolvedAt, createdAt])
+  @@index([machineId, type])
+  @@map("notifications")
+}
