@@ -37,6 +37,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     ...(user.role === 'admin' ? [{ href: '/depositors', label: 'Depositors' }] : []),
     // Both roles see billing; renters see only their own agreements.
     { href: '/rentals', label: user.role === 'admin' ? 'Rentals' : 'Billing' },
+    // The payout wallet + top-up is a renter feature (spec §7.3).
+    ...(user.role === 'renter' ? [{ href: '/wallet', label: 'Wallet' }] : []),
   ];
 
   const isActive = (href: string) =>

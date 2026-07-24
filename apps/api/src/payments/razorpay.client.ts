@@ -20,10 +20,24 @@ export type CreatePayoutResult = {
   status: 'processing';
 };
 
+export type CreateOrderInput = {
+  amountPaise: bigint;
+  /** our wallet_topup id, echoed back on the payment webhook */
+  receipt: string;
+};
+
+export type CreateOrderResult = {
+  /** Razorpay order id, handed to Checkout on the frontend */
+  orderId: string;
+};
+
 export interface RazorpayClient {
   /** Whether this is the mock (no real money moves). Surfaced to the UI. */
   readonly isMock: boolean;
+  /** RazorpayX payout to a depositor's UPI. */
   createPayout(input: CreatePayoutInput): Promise<CreatePayoutResult>;
+  /** Razorpay Checkout order for a renter wallet top-up. */
+  createOrder(input: CreateOrderInput): Promise<CreateOrderResult>;
 }
 
 export const RAZORPAY_CLIENT = Symbol('RAZORPAY_CLIENT');

@@ -73,6 +73,27 @@ export const api = {
     request<{ paid?: boolean; alreadyPaid?: boolean }>(`/rentals/invoices/${id}/pay`, {
       method: 'POST',
     }),
+  wallet: () => request<Wallet>('/wallet'),
+  topup: (amountPaise: number) =>
+    request<{ topupId: string; orderId: string; isMock: boolean }>('/wallet/topup', {
+      method: 'POST',
+      body: JSON.stringify({ amountPaise }),
+    }),
+};
+
+export type Wallet = {
+  balancePaise: string;
+  heldPaise: string;
+  spendablePaise: string;
+  ownerType: 'renter' | 'company';
+  topups: { id: string; amountPaise: string; status: string; createdAt: string }[];
+  payouts: {
+    id: string;
+    amountPaise: string;
+    status: string;
+    machineSerial: string | null;
+    createdAt: string;
+  }[];
 };
 
 export type InvoiceStatus = 'due' | 'paid' | 'overdue' | 'waived';

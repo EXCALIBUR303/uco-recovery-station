@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomBytes } from 'node:crypto';
 import type {
+  CreateOrderInput,
+  CreateOrderResult,
   CreatePayoutInput,
   CreatePayoutResult,
   RazorpayClient,
@@ -14,6 +16,10 @@ export type PayoutSettledEvent = {
   outcome: 'processed' | 'failed';
 };
 export const PAYOUT_SETTLED = 'payout.settled';
+
+/** Emitted after the mock "captures" a top-up payment, so TopupService credits. */
+export type TopupSettledEvent = { topupId: string; outcome: 'paid' | 'failed' };
+export const TOPUP_SETTLED = 'topup.settled';
 
 /**
  * Stand-in for RazorpayX used when no real credentials are configured. It
@@ -52,5 +58,20 @@ export class MockRazorpayClient implements RazorpayClient {
     }, 300);
 
     return { providerId, status: 'processing' };
+  }
+
+  async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+    const orderId = `mock_order_${randomBytes(8).toString('hex')}`;
+    this.log.warn(
+      `MOCK top-up order ${orderId} for ${input.amountPaise} paise — no real payment; auto-capturing`,
+    );
+    // A real top-up needs the user to complete Checkout; the mock just captures.
+    setTimeout(() => {
+      this.events.emit(TOPUP_SETTLED, {
+        topupId: input.receipt,
+        outcome: 'paid',
+      } satisfies TopupSettledEvent);
+    }, 300);
+    return { orderId };
   }
 }

@@ -1,5 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type {
+  CreateOrderInput,
+  CreateOrderResult,
   CreatePayoutInput,
   CreatePayoutResult,
   RazorpayClient,
@@ -66,5 +68,31 @@ export class RealRazorpayClient implements RazorpayClient {
 
     const data = (await res.json()) as { id: string };
     return { providerId: data.id, status: 'processing' };
+  }
+
+  async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+    // Razorpay Checkout order (standard Razorpay, same key pair). The frontend
+    // opens Checkout with this order id; on success a payment webhook confirms
+    // the top-up. That webhook + its signature check are integration points
+    // that need a live test account (see webhook.controller.ts).
+    const res = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        authorization: `Basic ${this.auth}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: Number(input.amountPaise),
+        currency: 'INR',
+        receipt: input.receipt,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      this.log.error(`Razorpay order failed (${res.status}): ${body}`);
+      throw new Error(`Razorpay order rejected: ${res.status}`);
+    }
+    const data = (await res.json()) as { id: string };
+    return { orderId: data.id };
   }
 }

@@ -15,13 +15,14 @@ Following the spec's build order (DESIGN.md §6):
 | 3 | RazorpayX payouts | **done against a mock** — full money path works; add real credentials to go live (one-line swap) |
 | 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
 | 5 | Admin dashboard | **done** |
-| 6 | Renter accounts, wallet, scoped view | **partly done** — renter login, scoped views, and rental billing (flat fee) all work; the payout **wallet top-up** UI still needs Razorpay Checkout (blocked, see step 3) |
+| 6 | Renter accounts, wallet, scoped view | **done** — renter login, scoped views, rental billing, and payout-wallet top-up (against the mock) |
 | 7 | Idle-machine notifications | **done** (built on the §2 status engine: telemetry ingest, scheduled offline/idle sweeps, in-dashboard alerts) |
 
-Rental billing (open-question Q5, the flat monthly fee) is done: monthly invoice
-generation, grace-then-suspend on arrears, overdue alerts, and manual payment
-recording. What's left of step 6 is the renter *payout wallet* top-up, which
-needs the same Razorpay integration as step 3.
+**All seven build-order steps are done.** Steps 3 and 6 run against a mock
+Razorpay client until real credentials are set (see "Going live with payments").
+The remaining work before production is real-account integration testing (UPI
+fund-accounts, webhook signatures) and hardware/sensor calibration — not new
+features.
 
 **No _real_ money moves yet.** The full payout path is built and tested, but it
 runs against a **mock** Razorpay client until real credentials are set (see
@@ -79,8 +80,10 @@ uco-recovery-station/
     │       ├── payments/
     │       │   ├── wallet.service.ts      the money core: reserve/capture/release/credit
     │       │   ├── payout.service.ts      payout lifecycle (hold → settle)
+    │       │   ├── topup.service.ts       renter wallet top-up (§7.3)
+    │       │   ├── wallet.controller.ts   GET /wallet, POST /wallet/topup
     │       │   ├── razorpay.client.ts     interface (+ mock / real / provider)
-    │       │   └── webhook.controller.ts  RazorpayX settlement webhook
+    │       │   └── webhook.controller.ts  payout + top-up settlement webhooks
     │       ├── rentals/                   flat-fee billing (Q5)
     │       └── prisma/
     ├── kiosk/              touchscreen app (Preact + Vite) :5173
