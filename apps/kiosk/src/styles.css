@@ -216,3 +216,118 @@ p {
   font-size: 0.78rem;
   margin: 0;
 }
+
+/* ---- phone sign-up page (/join/<token>) ---- */
+.join {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 18px calc(32px + env(safe-area-inset-bottom));
+}
+
+.join-card {
+  width: 100%;
+  max-width: 420px;
+  margin-top: 6vh;
+}
+
+.join-brand {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 22px;
+}
+
+.join-card h1 {
+  font-size: 1.9rem;
+  margin: 0 0 8px;
+}
+
+.join-card p {
+  color: var(--muted);
+  margin: 0 0 22px;
+  max-width: none;
+}
+
+.join-field {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.join-field span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+
+.join-field input {
+  width: 100%;
+  padding: 15px 15px;
+  font-size: 1.05rem; /* >=16px so iOS doesn't zoom on focus */
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.join-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.join-btn {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0b0e09;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.join-btn:disabled {
+  opacity: 0.5;
+}
+
+.join-btn.secondary {
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  margin-bottom: 18px;
+}
+
+.join-error {
+  background: rgba(255, 107, 82, 0.12);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.join-fine {
+  font-size: 0.8rem;
+  color: #6f7a6a;
+  margin-top: 18px;
+}
+
+.join-tick {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 4px solid var(--accent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.6rem;
+  margin: 4vh 0 20px;
+}

@@ -18,6 +18,9 @@ export default defineConfig({
     minify: 'terser',
   },
   server: {
+    // Listen on the LAN too, so a phone on the same Wi-Fi can open the QR
+    // sign-up link. (Dev convenience — a real deployment serves over HTTPS.)
+    host: true,
     port: 5173,
     proxy: {
       // the kiosk never talks to the database, only to the backend

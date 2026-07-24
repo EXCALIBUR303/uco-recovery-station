@@ -68,7 +68,11 @@ export function App() {
       }
       setSessionId(res.sessionId);
       setPairToken(res.pairToken);
-      setPairUrl(`${window.location.origin}${res.pairUrl}`);
+      // The QR must resolve on the depositor's phone, not the kiosk. In dev the
+      // kiosk is opened at localhost, which a phone can't reach — so point the
+      // QR at the LAN address via VITE_PUBLIC_ORIGIN when it's set.
+      const publicOrigin = import.meta.env.VITE_PUBLIC_ORIGIN ?? window.location.origin;
+      setPairUrl(`${publicOrigin}${res.pairUrl}`);
       setStage('qr');
     } catch (e) {
       // A used tablet drops WiFi; recover to the language screen rather than

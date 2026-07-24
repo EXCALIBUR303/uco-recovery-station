@@ -62,9 +62,10 @@ export class KioskService {
       machineStatus: machine.effectiveStatus,
       serialNo: machine.serialNo,
       ratePerKgPaise: machine.ratePerKgPaise,
-      // The phone opens this URL. Token is single-use and short-lived, so an
-      // old QR left on screen cannot be scanned later by someone else.
-      pairUrl: `/pair/${pairToken}`,
+      // The phone opens this URL — the mobile sign-up page. Token is single-use
+      // and short-lived, so an old QR left on screen can't be scanned later.
+      // (/join is served by the kiosk app; /pair is the API call it then makes.)
+      pairUrl: `/join/${pairToken}`,
       pairToken,
       expiresAt: session.pairExpiresAt,
     };
