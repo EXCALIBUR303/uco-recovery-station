@@ -12,8 +12,11 @@ import { execSync } from 'node:child_process';
 
 const API = process.env.API ?? 'http://localhost:3010';
 const MACHINE = 'UCO-0002'; // rented -> draws from the renter wallet
+// Target the wallet that actually funds this machine, so extra renter wallets
+// (e.g. from sign-up) don't confuse the query.
 const RENTER_WALLET_SQL =
-  "select balance_paise||'|'||held_paise from wallets where owner_type='renter'";
+  "select balance_paise||'|'||held_paise from wallets where id = " +
+  "(select funding_wallet_id from machines where serial_no='UCO-0002')";
 
 let pass = 0, fail = 0;
 const check = (label, got, want) => {

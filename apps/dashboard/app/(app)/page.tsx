@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, kg, rupees, ago, type Machine } from '../../lib/api';
+import { api, auth, kg, rupees, ago, type Machine } from '../../lib/api';
 import { STATUS } from '../../lib/status';
 import { Badge, Stat, Meter } from '../ui';
 
 export default function MachinesPage() {
   const router = useRouter();
+  const isRenter = auth.user()?.role === 'renter';
   const [machines, setMachines] = useState<Machine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +18,33 @@ export default function MachinesPage() {
 
   if (error) return <p className="error">{error}</p>;
   if (!machines) return <p className="loading">Loading machines…</p>;
+
+  // A freshly signed-up renter has no machines until the company assigns one.
+  if (machines.length === 0) {
+    return (
+      <>
+        <div className="page-head">
+          <h1>Machines</h1>
+          <p>{isRenter ? 'Your rented machines' : 'The fleet'}</p>
+        </div>
+        <div className="empty">
+          <div className="empty-mark">🛢️</div>
+          <h2 style={{ textTransform: 'none', color: 'var(--text)', fontSize: '1.1rem' }}>
+            No machines yet
+          </h2>
+          {isRenter ? (
+            <p>
+              Your account is set up. Once the UCO Recovery team assigns a machine
+              to you, it'll appear here. In the meantime you can add funds to your
+              wallet so payouts are ready to go.
+            </p>
+          ) : (
+            <p>No machines have been deployed yet.</p>
+          )}
+        </div>
+      </>
+    );
+  }
 
   const active = machines.filter((m) => m.effectiveStatus === 'in_service').length;
   const needAttention = machines.filter(

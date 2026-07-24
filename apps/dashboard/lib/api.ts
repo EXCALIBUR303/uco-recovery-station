@@ -63,6 +63,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+  register: (input: { email: string; password: string; displayName: string; phone?: string }) =>
+    request<{ token: string; user: SessionUser }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   machines: () => request<Machine[]>('/machines'),
   machine: (id: string) => request<MachineDetail>(`/machines/${id}`),
   depositors: () => request<Depositor[]>('/depositors'),

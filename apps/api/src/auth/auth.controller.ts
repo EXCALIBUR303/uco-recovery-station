@@ -16,6 +16,20 @@ export class AuthController {
     return this.auth.login(body.email, body.password);
   }
 
+  /** Renter self-sign-up (spec §9.1). Creates a renter account and logs in. */
+  @Post('register')
+  register(
+    @Body()
+    body: { email?: string; password?: string; displayName?: string; phone?: string },
+  ) {
+    return this.auth.register({
+      email: body?.email ?? '',
+      password: body?.password ?? '',
+      displayName: body?.displayName ?? '',
+      phone: body?.phone,
+    });
+  }
+
   /** Lets the dashboard confirm a stored token is still valid on load. */
   @UseGuards(JwtGuard)
   @Get('me')
