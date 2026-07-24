@@ -12,7 +12,7 @@ Following the spec's build order (DESIGN.md §6):
 |---|---|---|
 | 1 | Core data model — machines, users, transactions, offences | **done** |
 | 2 | Minimal kiosk app, simulated sensor data | **done** |
-| 3 | RazorpayX payouts | **blocked** — needs RazorpayX credentials |
+| 3 | RazorpayX payouts | **done against a mock** — full money path works; add real credentials to go live (one-line swap) |
 | 4 | Offence counting + blacklist logic | **done** (built alongside step 2 — it shares a transaction with recording a rejection, so splitting them would have been wrong) |
 | 5 | Admin dashboard | **done** |
 | 6 | Renter accounts, wallet, scoped view | **partly done** — renter login, scoped views, and rental billing (flat fee) all work; the payout **wallet top-up** UI still needs Razorpay Checkout (blocked, see step 3) |
@@ -23,9 +23,29 @@ generation, grace-then-suspend on arrears, overdue alerts, and manual payment
 recording. What's left of step 6 is the renter *payout wallet* top-up, which
 needs the same Razorpay integration as step 3.
 
-**Nobody is paid yet.** An accepted deposit is recorded and priced correctly, but
-no payout is sent until step 3. The kiosk shows the finished "Thank You" screen,
-so do not demo this to anyone as a working payment.
+**No _real_ money moves yet.** The full payout path is built and tested, but it
+runs against a **mock** Razorpay client until real credentials are set (see
+below). The kiosk's Thank-You screen carries a "MOCK gateway" note so a demo is
+never mistaken for a live payment.
+
+## Going live with payments
+
+The payout path selects a real RazorpayX client automatically once these are set
+in `apps/api/.env` — no code change:
+
+```bash
+RAZORPAY_KEY_ID=rzp_test_xxxxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxx
+RAZORPAYX_ACCOUNT_NUMBER=xxxxxxxx
+```
+
+Two integration points in `apps/api/src/payments/real-razorpay.client.ts` still
+need testing against a live RazorpayX **test** account (they can't be exercised
+here): resolving a depositor's UPI into a RazorpayX `fund_account`, and webhook
+**signature verification** in `webhook.controller.ts`. Both are marked with
+`NOTE:` in the code. Everything else — the hold→capture/release wallet ledger,
+idempotency, retries, the failure paths — is done and covered by
+`scripts/payout-check.mjs`.
 
 ## Layout
 
@@ -56,6 +76,12 @@ uco-recovery-station/
     │       │   ├── status-sweep.service.ts    scheduled offline/idle sweeps
     │       │   ├── telemetry.controller.ts    machine → platform relay (§7)
     │       │   └── notifications.controller.ts
+    │       ├── payments/
+    │       │   ├── wallet.service.ts      the money core: reserve/capture/release/credit
+    │       │   ├── payout.service.ts      payout lifecycle (hold → settle)
+    │       │   ├── razorpay.client.ts     interface (+ mock / real / provider)
+    │       │   └── webhook.controller.ts  RazorpayX settlement webhook
+    │       ├── rentals/                   flat-fee billing (Q5)
     │       └── prisma/
     ├── kiosk/              touchscreen app (Preact + Vite) :5173
     │   └── src/
@@ -166,6 +192,13 @@ Check the machine status state machine in isolation (no server needed):
 
 ```bash
 cd apps/api && npm run build && node scripts/status-check.mjs
+```
+
+Check the payout money path (API must be running; drives real deposits on the
+rented machine and asserts the hold→capture ledger + failure paths):
+
+```bash
+node apps/api/scripts/payout-check.mjs
 ```
 
 ### Trying rental billing

@@ -41,8 +41,10 @@ export type DepositResult = {
   weightDeltaG: number;
   amountPaise: string | null;
   blacklisted: boolean;
-  /** null unless accepted; 'not_implemented' until RazorpayX is wired (step 3) */
+  /** null unless accepted; 'processing' once the payout is initiated */
   payoutStatus: string | null;
+  /** true when the mock Razorpay client is in use — no real money moved */
+  payoutIsMock: boolean;
 };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

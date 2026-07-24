@@ -28,6 +28,15 @@ async function api(path, options = {}) {
   return { status: res.status, body };
 }
 
+// Keep the machine online: the offline sweep marks a dev machine offline after
+// a few quiet minutes, which would block every deposit below.
+async function heartbeat() {
+  await api(`/telemetry/${MACHINE}`, {
+    method: 'POST',
+    body: JSON.stringify({ drumFillPct: 12, rejectFillPct: 4 }),
+  });
+}
+
 /** One full visit: QR -> pair -> pour -> result. */
 async function visit(phone, upiId, readings, deviceToken) {
   const start = await api(`/kiosk/machines/${MACHINE}/sessions`, {
@@ -54,6 +63,8 @@ async function visit(phone, upiId, readings, deviceToken) {
 const stamp = Date.now();
 const honest = `+9190000${String(stamp).slice(-5)}`;
 const cheat = `+9191000${String(stamp).slice(-5)}`;
+
+await heartbeat();
 
 console.log('--- honest depositor ---');
 const a1 = await visit(honest, `honest${stamp}@upi`, {

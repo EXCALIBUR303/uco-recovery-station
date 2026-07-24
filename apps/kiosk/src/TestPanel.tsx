@@ -24,7 +24,7 @@ export function TestPanel({
   machine,
   error,
   blacklisted,
-  payoutStatus,
+  payoutIsMock,
   onSimulateScan,
   onPour,
   onReset,
@@ -33,7 +33,7 @@ export function TestPanel({
   machine: string;
   error: string | null;
   blacklisted: boolean;
-  payoutStatus: string | null;
+  payoutIsMock: boolean;
   onSimulateScan: () => void;
   onPour: (r: Readings) => void;
   onReset: () => void;
@@ -70,12 +70,13 @@ export function TestPanel({
 
       {error && <p class="muted-small">{error}</p>}
 
-      {/* The thank-you screen is the finished design, which per spec §3.6 must
-          only appear once RazorpayX confirms the payout was initiated. Payouts
-          are build step 3, so right now nobody is actually paid. */}
-      {payoutStatus === 'not_implemented' && (
+      {/* Spec §3.6: the Thank-You screen shows once the payout is *initiated*.
+          With the mock Razorpay client no real money moves — flag that so a
+          demo is never mistaken for a live payment. */}
+      {payoutIsMock && (
         <p class="muted-small" style="color:#ffc046">
-          No payout was sent — RazorpayX is not wired up yet (build step 3).
+          Payout initiated on the MOCK gateway — no real money moved. Add
+          RazorpayX credentials to pay for real.
         </p>
       )}
       {stage === 'qr' && (

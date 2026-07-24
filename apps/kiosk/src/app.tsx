@@ -171,7 +171,7 @@ export function App() {
         machine={MACHINE}
         error={error}
         blacklisted={result?.blacklisted ?? false}
-        payoutStatus={result?.payoutStatus ?? null}
+        payoutIsMock={result?.payoutIsMock ?? false}
         onSimulateScan={simulateScan}
         onPour={pour}
         onReset={reset}

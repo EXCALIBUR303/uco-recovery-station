@@ -7,6 +7,7 @@ import {
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MachineStatusService } from '../status/machine-status.service';
+import { PayoutService } from '../payments/payout.service';
 import {
   classify,
   payoutPaise,
@@ -23,6 +24,7 @@ export class KioskService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly status: MachineStatusService,
+    private readonly payouts: PayoutService,
   ) {}
 
   /**
@@ -361,9 +363,6 @@ export class KioskService {
         weightDeltaG: readings.weightDeltaG,
         amountPaise,
         blacklisted,
-        // Payouts are build step 3 and need RazorpayX credentials. Until then
-        // an accepted deposit is recorded and priced but not paid.
-        payoutStatus: verdict.outcome === 'accepted' ? 'not_implemented' : null,
       };
     });
 
@@ -374,6 +373,17 @@ export class KioskService {
       await this.status.recompute(machine.id);
     }
 
-    return result;
+    // Payment. Initiated only after the deposit is durably recorded, and the
+    // kiosk gets 'processing' back as soon as RazorpayX accepts it — the
+    // Thank-You screen shows on initiation, not on settlement (spec §3.6).
+    let payoutStatus: string | null = null;
+    let payoutIsMock = false;
+    if (result.outcome === 'accepted') {
+      const p = await this.payouts.initiate(result.depositId);
+      payoutStatus = p.status;
+      payoutIsMock = p.isMock;
+    }
+
+    return { ...result, payoutStatus, payoutIsMock };
   }
 }
