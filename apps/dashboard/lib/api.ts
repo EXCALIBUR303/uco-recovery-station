@@ -68,6 +68,16 @@ export const api = {
   depositors: () => request<Depositor[]>('/depositors'),
   depositor: (id: string) => request<DepositorDetail>(`/depositors/${id}`),
   notifications: () => request<Notification[]>('/notifications'),
+  dismissAlerts: (ids: string[]) =>
+    request<{ resolved: number }>('/notifications/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+  dismissAllAlerts: () =>
+    request<{ resolved: number }>('/notifications/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ all: true }),
+    }),
   rentals: () => request<RentalAgreementRow[]>('/rentals'),
   payInvoice: (id: string) =>
     request<{ paid?: boolean; alreadyPaid?: boolean }>(`/rentals/invoices/${id}/pay`, {
@@ -135,6 +145,7 @@ export type Notification = {
   id: string;
   type: NotificationType;
   machine: { serialNo: string; label: string | null } | null;
+  depositor: { id: string; phone: string } | null;
   createdAt: string;
 };
 
