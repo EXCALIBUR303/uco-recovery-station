@@ -1,12 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** UPI IDs are personal data; show only the tail so the list stays readable
- *  without spilling full identifiers across the admin's screen. */
+/**
+ * UPI IDs are personal data, so they're redacted — but an operator reviewing
+ * blacklists has to be able to tell two accounts apart, and masking everything
+ * after the second character made every row read identically. Keep the first
+ * two and last two characters of the local part, with a fixed-width middle so
+ * the column still can't be used to infer length.
+ */
 const maskUpi = (upi: string): string => {
   const [name, handle] = upi.split('@');
-  const head = name.length <= 2 ? name : `${name.slice(0, 2)}${'•'.repeat(Math.max(1, name.length - 2))}`;
-  return handle ? `${head}@${handle}` : head;
+  const masked =
+    name.length <= 4 ? name : `${name.slice(0, 2)}••••${name.slice(-2)}`;
+  return handle ? `${masked}@${handle}` : masked;
 };
 
 @Injectable()
