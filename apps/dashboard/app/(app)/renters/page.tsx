@@ -179,7 +179,7 @@ export default function RentersPage() {
               <input
                 type="text"
                 value={brandAccent}
-                placeholder="#7ac943"
+                placeholder="#C9822A"
                 onChange={(e) => setBrandAccent(e.currentTarget.value)}
               />
             </label>

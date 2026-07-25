@@ -281,6 +281,12 @@ model Machine {
   fundingWalletId String?          @map("funding_wallet_id") @db.Uuid
 
   ratePerKgPaise BigInt @map("rate_per_kg_paise")
+
+  /// Physical tank sizes, so a fill level can be shown as a real quantity
+  /// (47.2 / 60.0 KG) rather than a bare percentage. The reject bucket has a
+  /// level sensor only — no load cell — so it is measured in litres.
+  drumCapacityKg  Decimal @default(60) @map("drum_capacity_kg") @db.Decimal(6, 1)
+  bucketCapacityL Decimal @default(20) @map("bucket_capacity_l") @db.Decimal(6, 1)
   /// open question Q3 — per-machine override; null falls back to platform default
   minWeightDeltaG Int?  @map("min_weight_delta_g")
 

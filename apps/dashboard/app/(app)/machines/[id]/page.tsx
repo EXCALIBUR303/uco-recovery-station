@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { Fragment, use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   api,
@@ -12,7 +12,8 @@ import {
   type MachineDetail,
   type RenterRow,
 } from '../../../../lib/api';
-import { STATUS, REJECTION_LABEL } from '../../../../lib/status';
+import { STATUS, REJECTION_LABEL, REJECTION_SENSOR } from '../../../../lib/status';
+import { Stamp } from '../../../Numerals';
 import { Badge, Stat, Meter } from '../../../ui';
 import { MiniBars } from '../../../MiniBars';
 
@@ -30,6 +31,7 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
   const [fee, setFee] = useState('8000');
   const [rate, setRate] = useState('');
   const [secret, setSecret] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.machine(id).then(setM).catch((e) => setError(e.message));
@@ -255,7 +257,7 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
           <MiniBars
             title="Attempts per day"
             unit="attempts"
-            color="var(--ok)"
+            color="var(--info)"
             points={series.points.map((p) => ({
               day: p.day,
               value: p.accepted + p.rejected + p.ignored,
@@ -264,7 +266,7 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
           <MiniBars
             title="Rejected per day"
             unit="rejected"
-            color="var(--warn)"
+            color="var(--bad)"
             points={series.points.map((p) => ({ day: p.day, value: p.rejected }))}
           />
         </div>
@@ -288,8 +290,15 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
               </thead>
               <tbody>
                 {m.recent.map((d) => (
-                  <tr key={d.id}>
-                    <td className="faint">{ago(d.createdAt)}</td>
+                  <Fragment key={d.id}>
+                  <tr
+                    className={d.outcome !== 'accepted' ? 'sensor-row' : undefined}
+                    onClick={() =>
+                      d.outcome !== 'accepted' &&
+                      setOpenRow(openRow === d.id ? null : d.id)
+                    }
+                  >
+                    <td className="faint"><Stamp iso={d.createdAt} /></td>
                     <td>
                       <Badge
                         tone={
@@ -309,6 +318,43 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
                     <td className="num dim">{kg(d.weightDeltaG)}</td>
                     <td className="num dim">{d.amountPaise ? rupees(d.amountPaise) : '—'}</td>
                   </tr>
+                  {openRow === d.id && d.sensorReadings && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: 0 }}>
+                        <div className="sensors">
+                          <div className="sensor">
+                            <span className="sk">capacitance</span>
+                            <span className="sv">
+                              {d.sensorReadings.capacitance?.toFixed(1) ?? '—'}
+                            </span>
+                          </div>
+                          <div className="sensor">
+                            <span className="sk">colour</span>
+                            <span className="sv" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <i
+                                className="swatch"
+                                style={{
+                                  background: `rgb(${d.sensorReadings.colorValue ?? 0},${d.sensorReadings.colorValue ?? 0},${d.sensorReadings.colorValue ?? 0})`,
+                                }}
+                              />
+                              {d.sensorReadings.colorValue ?? '—'}
+                            </span>
+                          </div>
+                          <div className="sensor">
+                            <span className="sk">weight delta</span>
+                            <span className="sv">{d.weightDeltaG} g</span>
+                          </div>
+                          <div className="sensor">
+                            <span className="sk">triggered by</span>
+                            <span className="verdict">
+                              {d.rejectionReason ? REJECTION_SENSOR[d.rejectionReason] : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

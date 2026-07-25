@@ -136,7 +136,7 @@ export function Alerts() {
                 onClick={() => dismiss(g.ids, g.key)}
                 disabled={busy === g.key}
               >
-                ✕
+                ×
               </button>
             </li>
           );

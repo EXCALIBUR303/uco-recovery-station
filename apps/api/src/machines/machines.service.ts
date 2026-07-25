@@ -40,6 +40,10 @@ export class MachinesService {
       isIdle: m.isIdle,
       drumFillPct: m.drumFillPct,
       rejectFillPct: m.rejectFillPct,
+      drumCapacityKg: Number(m.drumCapacityKg),
+      bucketCapacityL: Number(m.bucketCapacityL),
+      drumLevelKg: ((m.drumFillPct ?? 0) / 100) * Number(m.drumCapacityKg),
+      bucketLevelL: ((m.rejectFillPct ?? 0) / 100) * Number(m.bucketCapacityL),
       totalWeightG: m.totalWeightG,
       totalPaidOutPaise: m.totalPaidOutPaise,
       ratePerKgPaise: m.ratePerKgPaise,
@@ -78,6 +82,7 @@ export class MachinesService {
           weightDeltaG: true,
           amountPaise: true,
           createdAt: true,
+          sensorReadings: true,
         },
       }),
       this.prisma.deposit.groupBy({
@@ -101,6 +106,10 @@ export class MachinesService {
       isIdle: machine.isIdle,
       drumFillPct: machine.drumFillPct,
       rejectFillPct: machine.rejectFillPct,
+      drumCapacityKg: Number(machine.drumCapacityKg),
+      bucketCapacityL: Number(machine.bucketCapacityL),
+      drumLevelKg: ((machine.drumFillPct ?? 0) / 100) * Number(machine.drumCapacityKg),
+      bucketLevelL: ((machine.rejectFillPct ?? 0) / 100) * Number(machine.bucketCapacityL),
       totalWeightG: machine.totalWeightG,
       totalPaidOutPaise: machine.totalPaidOutPaise,
       ratePerKgPaise: machine.ratePerKgPaise,
@@ -149,6 +158,38 @@ export class MachinesService {
     }
 
     return { days: span, points: [...buckets.values()] };
+  }
+
+  /**
+   * Fleet-wide event feed for the live ticker. Scoped like everything else, so
+   * a renter's ticker only carries their own machines.
+   */
+  async activity(user: AuthUser, take = 20) {
+    const scope = machineScopeFor(user);
+    const rows = await this.prisma.deposit.findMany({
+      where: Object.keys(scope).length ? { machine: scope } : {},
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(take, 60),
+      select: {
+        id: true,
+        outcome: true,
+        rejectionReason: true,
+        weightDeltaG: true,
+        amountPaise: true,
+        createdAt: true,
+        machine: { select: { id: true, serialNo: true } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      machineId: r.machine.id,
+      serialNo: r.machine.serialNo,
+      outcome: r.outcome,
+      rejectionReason: r.rejectionReason,
+      weightDeltaG: r.weightDeltaG,
+      amountPaise: r.amountPaise,
+      createdAt: r.createdAt,
+    }));
   }
 
   /**

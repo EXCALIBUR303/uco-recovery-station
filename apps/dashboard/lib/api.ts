@@ -88,6 +88,7 @@ export const api = {
     request<{ paid?: boolean; alreadyPaid?: boolean }>(`/rentals/invoices/${id}/pay`, {
       method: 'POST',
     }),
+  activity: (take = 20) => request<ActivityEvent[]>(`/machines/feed/activity?take=${take}`),
   series: (id: string, days = 30) =>
     request<ActivitySeries>(`/machines/${id}/series?days=${days}`),
   renters: () => request<RenterRow[]>('/renters'),
@@ -146,6 +147,17 @@ export type Wallet = {
     machineSerial: string | null;
     createdAt: string;
   }[];
+};
+
+export type ActivityEvent = {
+  id: string;
+  machineId: string;
+  serialNo: string;
+  outcome: 'accepted' | 'rejected' | 'ignored';
+  rejectionReason: string | null;
+  weightDeltaG: number;
+  amountPaise: string | null;
+  createdAt: string;
 };
 
 export type ActivitySeries = {
@@ -244,12 +256,23 @@ export type Machine = {
   isIdle: boolean;
   drumFillPct: number | null;
   rejectFillPct: number | null;
+  drumCapacityKg: number;
+  bucketCapacityL: number;
+  drumLevelKg: number;
+  bucketLevelL: number;
   totalWeightG: string;
   totalPaidOutPaise: string;
   ratePerKgPaise: string;
   walletBalancePaise: string | null;
   lastTelemetryAt: string | null;
   lastActivityAt: string | null;
+};
+
+export type SensorSnapshot = {
+  capacitance?: number;
+  colorValue?: number;
+  weightDeltaG?: number;
+  calibration?: Record<string, number>;
 };
 
 export type DepositRow = {
@@ -259,6 +282,7 @@ export type DepositRow = {
   weightDeltaG: number;
   amountPaise: string | null;
   createdAt: string;
+  sensorReadings?: SensorSnapshot | null;
   machine?: { serialNo: string };
 };
 
@@ -301,7 +325,7 @@ export const rupees = (paise: string | number | null): string => {
 
 export const kg = (grams: string | number | null): string => {
   if (grams == null) return '—';
-  return `${(Number(grams) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
+  return `${(Number(grams) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} KG`;
 };
 
 export const date = (iso: string | null): string => {

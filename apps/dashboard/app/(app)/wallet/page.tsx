@@ -75,10 +75,31 @@ export default function WalletPage() {
         <Stat k="Held (in-flight payouts)" v={rupees(wallet.heldPaise)} small />
       </div>
 
+      {/* Burn projection: what the last 7 days of payouts imply for runway.
+          Concrete and actionable — "top up soon" is not. */}
+      {(() => {
+        const weekAgo = Date.now() - 7 * 86_400_000;
+        const spent = wallet.payouts
+          .filter((p) => p.status === 'succeeded' && +new Date(p.createdAt) >= weekAgo)
+          .reduce((s, p) => s + Number(p.amountPaise), 0);
+        const perDay = spent / 7;
+        const spendable = Number(wallet.spendablePaise);
+        if (spendable <= 0 || perDay <= 0) return null;
+        const days = Math.floor(spendable / perDay);
+        return (
+          <div className="burn">
+            <p className="burn-line">
+              at the current burn rate of <b>{rupees(Math.round(perDay))}</b> per day
+              (last 7 days), this balance lasts about{' '}
+              <b>{days} {days === 1 ? 'day' : 'days'}</b>.
+            </p>
+          </div>
+        );
+      })()}
+
       {Number(wallet.spendablePaise) <= 0 && (
-        <div className="warn-note">
-          Your balance is empty, so your machine(s) have stopped accepting
-          deposits. Add funds to resume.
+        <div className="error">
+          your machines are paused. top up to resume payouts.
         </div>
       )}
 

@@ -20,6 +20,12 @@ export class MachinesController {
     return this.machines.detail(user, id);
   }
 
+  /** Fleet-wide event feed for the live ticker. */
+  @Get('feed/activity')
+  activity(@CurrentUser() user: AuthUser, @Query('take') take?: string) {
+    return this.machines.activity(user, Number(take) || 20);
+  }
+
   /** Daily activity for the traffic + rejection-rate charts. */
   @Get(':id/series')
   series(

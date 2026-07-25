@@ -157,7 +157,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         aria-expanded={drawer}
         onClick={() => setDrawer((d) => !d)}
       >
-        {drawer ? '✕' : '☰'}
+        {drawer ? '×' : '≡'}
       </button>
 
       <CommandPalette commands={commands} />
