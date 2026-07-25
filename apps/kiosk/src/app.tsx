@@ -39,6 +39,7 @@ export function App() {
   const [machineStatus, setMachineStatus] = useState('in_service');
   const [returning, setReturning] = useState(false);
   const [brandName, setBrandName] = useState<string | null>(null);
+  const [ratePerKg, setRatePerKg] = useState<number | null>(null);
   const [result, setResult] = useState<api.DepositResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +83,7 @@ export function App() {
         setStage('unavailable');
         return;
       }
+      setRatePerKg(Math.round(Number(res.ratePerKgPaise) / 100));
       setSessionId(res.sessionId);
       setPairToken(res.pairToken);
       // The QR must resolve on the depositor's phone, not the kiosk. In dev the
@@ -98,6 +100,33 @@ export function App() {
       setMachineStatus('offline');
     }
   }, []);
+
+  // Station identity on the idle screen: rate and state before any interaction.
+  useEffect(() => {
+    if (stage !== 'language') return;
+    let live = true;
+    const read = () =>
+      api
+        .machineInfo(MACHINE)
+        .then((info) => {
+          if (!live) return;
+          setMachineStatus(info.machineStatus);
+          setRatePerKg(Math.round(Number(info.ratePerKgPaise) / 100));
+          setBrandName(info.branding?.name ?? null);
+          if (info.branding?.accent) {
+            document.documentElement.style.setProperty('--accent', info.branding.accent);
+          } else {
+            document.documentElement.style.removeProperty('--accent');
+          }
+        })
+        .catch(() => {});
+    read();
+    const h = window.setInterval(read, 15000);
+    return () => {
+      live = false;
+      clearInterval(h);
+    };
+  }, [stage]);
 
   // Poll while waiting for a phone to scan.
   useEffect(() => {
@@ -173,6 +202,27 @@ export function App() {
   return (
     <>
       {brandName && <div class="brand-strip">{brandName}</div>}
+
+      {/* Instrument bar: the station identifies itself and its own state, the way
+          a piece of equipment does. Not decoration — it's what a depositor and a
+          passing technician both need to see first. */}
+      <div class="status-bar" style={brandName ? 'top:33px' : undefined}>
+        <div>
+          <div class="k">Station</div>
+          <div class="v">{MACHINE}</div>
+        </div>
+        <div>
+          <div class="k">Rate</div>
+          <div class="v">{ratePerKg != null ? `₹${ratePerKg}/kg` : '—'}</div>
+        </div>
+        <div>
+          <div class="k">Status</div>
+          <div class={`v${machineStatus === 'in_service' ? ' live' : ''}`}>
+            {machineStatus === 'in_service' ? 'READY' : machineStatus.toUpperCase()}
+          </div>
+        </div>
+      </div>
+
       {stage === 'language' && <LanguageScreen onPick={begin} />}
       {stage === 'qr' && <QrScreen t={t} pairUrl={pairUrl} />}
       {stage === 'pour' && <PourScreen t={t} returning={returning} />}

@@ -3,10 +3,12 @@
  * language never means building new screens.
  */
 
+/** `label` is the language in its own script; `roman` labels it for anyone who
+ *  can't read that script yet still needs to find their own row. */
 export const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'हिंदी' },
-  { code: 'mr', label: 'मराठी' },
+  { code: 'en', label: 'English', roman: 'English' },
+  { code: 'hi', label: 'हिंदी', roman: 'Hindi' },
+  { code: 'mr', label: 'मराठी', roman: 'Marathi' },
 ] as const;
 
 export type LangCode = (typeof LANGUAGES)[number]['code'];

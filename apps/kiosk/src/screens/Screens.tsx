@@ -7,11 +7,13 @@ type T = (typeof PHRASES)['en'];
 export function LanguageScreen({ onPick }: { onPick: (l: LangCode) => void }) {
   return (
     <div class="screen">
+      <p class="eyebrow">Used cooking oil · buy-back station</p>
       <h1>Choose your language</h1>
-      <p style="margin-bottom:28px">भाषा निवडा · भाषा चुनें</p>
+      <p style="margin-bottom:26px">भाषा निवडा · भाषा चुनें</p>
       {LANGUAGES.map((l) => (
         <button key={l.code} class="big-btn" onClick={() => onPick(l.code)}>
           {l.label}
+          <span class="sub">{l.roman}</span>
         </button>
       ))}
     </div>

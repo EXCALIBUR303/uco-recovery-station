@@ -61,6 +61,17 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export type MachineInfo = {
+  serialNo: string;
+  machineStatus: string;
+  ratePerKgPaise: string;
+  branding: Branding;
+};
+
+/** Idle-screen info; creates no session. */
+export const machineInfo = (serialNo: string) =>
+  req<MachineInfo>(`/kiosk/machines/${serialNo}`);
+
 export const startSession = (serialNo: string, language: string) =>
   req<StartResponse>(`/kiosk/machines/${serialNo}/sessions`, {
     method: 'POST',

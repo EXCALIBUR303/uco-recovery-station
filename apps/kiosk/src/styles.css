@@ -1,17 +1,32 @@
-/* Kiosk styling for a used tablet: big targets, high contrast, no animation
-   libraries, and no flexbox `gap` (unsupported on the old Chrome/WebView
-   versions this must run on — margins are used instead). */
+/* =============================================================================
+   Kiosk — Instrument Panel
+
+   Runs full-screen on a repurposed used tablet (spec §4), so: no animation
+   libraries, no webfonts, no flexbox `gap` (unsupported on the old Chrome/WebView
+   builds this must tolerate — margins instead), and a hard size budget.
+
+   The look is deliberately equipment rather than website: monospace readouts,
+   plate seams, amber gauge light on graphite, zero border-radius. Depositors
+   should read it as a machine that works, not an app.
+   ============================================================================= */
 
 :root {
-  --bg: #10130f;
-  --panel: #1b201a;
-  --line: #2f3a2c;
-  --text: #f2f5f0;
-  --muted: #9aa695;
-  --accent: #7ac943;
-  --accent-dark: #4e8f22;
-  --danger: #ff6b52;
-  --warn: #ffc046;
+  --bg: #0d1012;
+  --panel: #151a1c;
+  --panel-2: #1b2124;
+  --field: #0a0d0e;
+  --seam: #252d30;
+  --text: #e6edee;
+  --muted: #9aa8ac;
+  --faint: #7d8a8f;
+  --accent: #ffb020;
+  --on-accent: #140d00;
+  --ok: #4ad07a;
+  --danger: #ff5a45;
+  --warn: #f5851f;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -29,7 +44,7 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--sans);
   font-size: 20px;
   line-height: 1.45;
   overflow: hidden;
@@ -37,62 +52,154 @@ body {
   user-select: none;
 }
 
+/* faint plate grain — one gradient, no image request */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.014) 0px,
+    rgba(255, 255, 255, 0.014) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
 .screen {
+  position: relative;
+  z-index: 2;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 24px;
+  padding: 28px 24px;
 }
 
+/* ------------------------------------------------------------- type */
 h1 {
-  font-size: 2.6rem;
-  line-height: 1.15;
-  margin: 0 0 12px;
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 2.4rem;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+  font-weight: 500;
+  text-transform: uppercase;
 }
 
 h2 {
-  font-size: 1.6rem;
-  margin: 0 0 8px;
+  font-size: 1.45rem;
+  margin: 0 0 10px;
   font-weight: 600;
+  color: var(--text);
 }
 
 p {
   margin: 0 0 12px;
   color: var(--muted);
-  max-width: 22em;
+  max-width: 24em;
+  font-size: 1.05rem;
 }
 
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 18px;
+}
+
+/* --------------------------------------------- top status bar (instrument) */
+.status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  border-bottom: 1px solid var(--seam);
+  background: var(--panel);
+}
+
+.status-bar > div {
+  padding: 7px 14px;
+  border-right: 1px solid var(--seam);
+}
+
+.status-bar > div:last-child {
+  border-right: 0;
+  margin-left: auto;
+}
+
+.status-bar .k {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.status-bar .v {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  margin-top: 1px;
+  color: var(--text);
+}
+
+.status-bar .v.live { color: var(--ok); }
+
+/* -------------------------------------------------------- language buttons */
 .big-btn {
   display: block;
   width: 100%;
-  max-width: 420px;
-  min-height: 84px;
-  margin: 0 0 16px;
+  max-width: 440px;
+  min-height: 88px;
+  margin: 0 0 14px;
   padding: 18px 24px;
+  font-family: var(--sans);
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--text);
   background: var(--panel);
-  border: 2px solid var(--line);
-  border-radius: 14px;
+  border: 1px solid var(--seam);
+  border-left: 3px solid var(--seam);
   cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms, background 120ms, color 120ms;
 }
 
-.big-btn:active {
-  background: var(--accent-dark);
-  border-color: var(--accent);
+.big-btn .sub {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-top: 3px;
 }
 
+.big-btn:active,
+.big-btn:hover {
+  background: var(--panel-2);
+  border-left-color: var(--accent);
+  color: #fff;
+}
+
+/* ----------------------------------------------------------------- QR plate */
 .qr-frame {
   background: #fff;
-  padding: 16px;
-  border-radius: 16px;
-  margin: 0 0 20px;
+  padding: 18px;
+  margin: 0 0 22px;
   line-height: 0;
+  border: 1px solid var(--seam);
+  box-shadow: 0 0 0 1px rgba(255, 176, 32, 0.25), 0 18px 50px rgba(0, 0, 0, 0.5);
 }
 
 .qr-frame svg {
@@ -101,73 +208,75 @@ p {
   height: 240px;
 }
 
+/* ------------------------------------------------------------------- badge */
 .badge {
   display: inline-block;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  letter-spacing: 0.04em;
+  padding: 5px 13px;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   margin: 0 0 20px;
-  border: 1px solid var(--line);
-  color: var(--muted);
+  border: 1px solid var(--ok);
+  color: var(--ok);
 }
 
+/* ------------------------------------------------------------------ payout */
 .amount {
-  font-size: 4rem;
-  font-weight: 800;
+  font-family: var(--mono);
+  font-size: 4.2rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
   color: var(--accent);
-  margin: 6px 0 4px;
+  margin: 10px 0 6px;
+  font-variant-numeric: tabular-nums;
 }
 
+/* result marks: square plates, not friendly circles */
 .mark {
-  width: 108px;
-  height: 108px;
-  border-radius: 50%;
+  width: 92px;
+  height: 92px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3.4rem;
-  margin: 0 0 20px;
-  border: 4px solid currentColor;
+  font-size: 2.9rem;
+  margin: 0 0 22px;
+  border: 2px solid currentColor;
+  font-family: var(--mono);
 }
 
-.mark.ok {
-  color: var(--accent);
-}
-
-.mark.bad {
-  color: var(--danger);
-}
-
-.mark.wait {
-  color: var(--warn);
-}
+.mark.ok { color: var(--ok); }
+.mark.bad { color: var(--danger); }
+.mark.wait { color: var(--warn); }
 
 .warning {
-  margin: 22px 0 0;
+  margin: 24px 0 0;
   padding: 14px 18px;
-  border-radius: 12px;
   border: 1px solid var(--warn);
+  border-left-width: 3px;
   color: var(--warn);
-  font-size: 1rem;
-  max-width: 26em;
+  font-size: 0.98rem;
+  max-width: 28em;
+  background: rgba(245, 133, 31, 0.06);
 }
 
+/* ----------------------------------------------------------------- spinner */
 .spinner {
-  width: 64px;
-  height: 64px;
-  border: 6px solid var(--line);
+  width: 58px;
+  height: 58px;
+  border: 3px solid var(--seam);
   border-top-color: var(--accent);
-  border-radius: 50%;
-  margin: 0 0 22px;
+  margin: 0 0 24px;
   animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
 }
 
 /* ---- test panel: stands in for the ESP32 until hardware exists ---- */
@@ -176,18 +285,20 @@ p {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #0a0c09;
-  border-top: 1px solid var(--line);
+  z-index: 3;
+  background: #080a0b;
+  border-top: 1px solid var(--seam);
   padding: 10px 12px;
   text-align: left;
   font-size: 0.8rem;
 }
 
 .test-panel .label {
-  color: #6f7a6a;
+  font-family: var(--mono);
+  color: var(--faint);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  font-size: 0.64rem;
   margin: 0 0 8px;
 }
 
@@ -198,56 +309,85 @@ p {
 
 .test-btn {
   margin: 0 8px 8px 0;
-  padding: 9px 13px;
-  font-size: 0.82rem;
-  color: var(--text);
-  background: #1b201a;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  padding: 8px 13px;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--seam);
   cursor: pointer;
+  transition: color 120ms, border-color 120ms;
 }
 
+.test-btn:hover,
 .test-btn:active {
-  background: var(--accent-dark);
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 .muted-small {
-  color: #6f7a6a;
-  font-size: 0.78rem;
+  font-family: var(--mono);
+  color: var(--faint);
+  font-size: 0.74rem;
   margin: 0;
 }
 
-/* ---- phone sign-up page (/join/<token>) ---- */
+/* ---- phone sign-up page (/join/<token>) ------------------------------------
+   Deliberately the LIGHT register, unlike the kiosk it was scanned from: this
+   is held in a hand outdoors, and a dark screen with an amber accent is hard to
+   read in Indian daylight. Legibility beats visual continuity here.           */
 .join {
   min-height: 100%;
+  background: #e9ebe4;
+  color: #14181a;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 32px 18px calc(32px + env(safe-area-inset-bottom));
+  padding: 30px 18px calc(30px + env(safe-area-inset-bottom));
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .join-card {
   width: 100%;
   max-width: 420px;
-  margin-top: 6vh;
+  margin-top: 5vh;
 }
 
 .join-brand {
-  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  margin-bottom: 22px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #1f5133;
+  margin-bottom: 8px;
 }
 
 .join-card h1 {
-  font-size: 1.9rem;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 2.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #14181a;
   margin: 0 0 8px;
 }
 
 .join-card p {
-  color: var(--muted);
+  color: #4a534b;
   margin: 0 0 22px;
   max-width: none;
+  font-size: 0.98rem;
+}
+
+.join-rule {
+  height: 1px;
+  background: #14181a;
+  opacity: 0.85;
+  margin: 18px 0;
 }
 
 .join-field {
@@ -257,78 +397,80 @@ p {
 
 .join-field span {
   display: block;
-  font-size: 0.85rem;
-  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6a7268;
   margin-bottom: 7px;
 }
 
 .join-field input {
   width: 100%;
-  padding: 15px 15px;
+  padding: 15px;
   font-size: 1.05rem; /* >=16px so iOS doesn't zoom on focus */
-  color: var(--text);
-  background: var(--panel);
-  border: 2px solid var(--line);
-  border-radius: 12px;
+  color: #14181a;
+  background: #fff;
+  border: 1px solid #cfd4c8;
   -webkit-user-select: text;
   user-select: text;
 }
 
 .join-field input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: #1f5133;
+  box-shadow: 0 0 0 1px #1f5133;
 }
 
 .join-btn {
   width: 100%;
   min-height: 56px;
   margin-top: 8px;
-  font-size: 1.1rem;
+  font-family: var(--sans);
+  font-size: 0.95rem;
   font-weight: 700;
-  color: #0b0e09;
-  background: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #1f5133;
   border: none;
-  border-radius: 12px;
   cursor: pointer;
 }
 
-.join-btn:disabled {
-  opacity: 0.5;
-}
+.join-btn:disabled { opacity: 0.45; }
 
 .join-btn.secondary {
-  color: var(--text);
-  background: var(--panel);
-  border: 2px solid var(--line);
-  margin-bottom: 18px;
+  color: #14181a;
+  background: transparent;
+  border: 1px solid #14181a;
+  margin-bottom: 16px;
 }
 
 .join-error {
-  background: rgba(255, 107, 82, 0.12);
-  border: 1px solid var(--danger);
-  color: var(--danger);
+  background: rgba(161, 47, 30, 0.08);
+  border-left: 3px solid #a12f1e;
+  color: #a12f1e;
   padding: 11px 14px;
-  border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   margin-bottom: 16px;
 }
 
 .join-fine {
-  font-size: 0.8rem;
-  color: #6f7a6a;
-  margin-top: 18px;
+  font-size: 0.82rem;
+  color: #6a7268;
+  margin-top: 20px;
 }
 
 .join-tick {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 4px solid var(--accent);
-  color: var(--accent);
+  width: 80px;
+  height: 80px;
+  border: 2px solid #1f5133;
+  color: #1f5133;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.6rem;
+  font-size: 2.4rem;
+  font-family: var(--mono);
   margin: 4vh 0 20px;
 }
 
@@ -338,13 +480,15 @@ p {
   top: 0;
   left: 0;
   right: 0;
-  padding: 9px 16px;
+  z-index: 4;
+  padding: 8px 16px;
   text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
   background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--seam);
 }

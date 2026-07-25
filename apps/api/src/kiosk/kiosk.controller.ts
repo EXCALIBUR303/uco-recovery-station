@@ -6,6 +6,17 @@ import type { SensorReadings } from './sensor-classifier';
 export class KioskController {
   constructor(private readonly kiosk: KioskService) {}
 
+  /**
+   * Station identity for the idle screen: rate, current state and branding,
+   * without creating a session. Lets the kiosk show "₹35/kg · READY" — or
+   * "FULL" — before the depositor commits to anything, instead of finding out
+   * after picking a language.
+   */
+  @Get('kiosk/machines/:serialNo')
+  info(@Param('serialNo') serialNo: string) {
+    return this.kiosk.machineInfo(serialNo);
+  }
+
   /** Kiosk screen 2: start a visit and get the QR payload. */
   @Post('kiosk/machines/:serialNo/sessions')
   start(

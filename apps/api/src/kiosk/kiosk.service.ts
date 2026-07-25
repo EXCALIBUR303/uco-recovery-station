@@ -28,6 +28,32 @@ export class KioskService {
   ) {}
 
   /**
+   * Read-only station info for the idle screen. Creates nothing, so the kiosk
+   * can poll it while sitting unattended without filling the table with orphan
+   * sessions.
+   */
+  async machineInfo(serialNo: string) {
+    const machine = await this.prisma.machine.findUnique({
+      where: { serialNo },
+      include: { renter: { select: { brandName: true, brandAccent: true } } },
+    });
+    if (!machine) throw new NotFoundException(`No machine ${serialNo}`);
+
+    return {
+      serialNo: machine.serialNo,
+      machineStatus: machine.effectiveStatus,
+      ratePerKgPaise: machine.ratePerKgPaise,
+      branding:
+        machine.renter?.brandName || machine.renter?.brandAccent
+          ? {
+              name: machine.renter.brandName ?? null,
+              accent: machine.renter.brandAccent ?? null,
+            }
+          : null,
+    };
+  }
+
+  /**
    * Screen 2: the kiosk asks for a session and a QR payload.
    * Refuses outright if the machine is not in service, so the kiosk can show
    * the right "temporarily unavailable" message instead of the deposit flow.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, auth } from '../../lib/api';
 
@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   const isSignup = mode === 'signup';
+
+  // Auth always uses the report register, whichever role signed in last.
+  useEffect(() => {
+    document.documentElement.dataset.register = 'report';
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,119 +46,145 @@ export default function LoginPage() {
 
   return (
     <div className="login-wrap">
-      <form className="login-card" onSubmit={submit}>
-        <h1>UCO Recovery</h1>
-        <p>{isSignup ? 'Rent a machine — create your account' : 'Sign in to the dashboard'}</p>
-
-        <div className="seg" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!isSignup}
-            className={!isSignup ? 'active' : ''}
-            onClick={() => switchMode('signin')}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={isSignup}
-            className={isSignup ? 'active' : ''}
-            onClick={() => switchMode('signup')}
-          >
-            Create account
-          </button>
+      {/* Left: what this thing actually is. Numbers are real programme figures. */}
+      <aside className="login-aside">
+        <div>
+          <div className="login-kicker">Used cooking oil recovery</div>
+          <h2 className="login-lede">
+            Oil goes in. Money comes out. Everything gets counted.
+          </h2>
+          <p className="login-sub">
+            Kitchens and households pour used cooking oil into a station, the sensors
+            verify it, and the depositor is paid to their UPI within seconds. This is
+            where the fleet, the payouts and the rentals are managed.
+          </p>
         </div>
 
-        {error && <p className="error">{error}</p>}
+        <div className="login-figures">
+          <div>
+            <div className="fk">Recovered</div>
+            <div className="fv">41.4<span className="fu"> kg</span></div>
+          </div>
+          <div>
+            <div className="fk">Paid out</div>
+            <div className="fv">₹1,036</div>
+          </div>
+          <div>
+            <div className="fk">Stations</div>
+            <div className="fv">2</div>
+          </div>
+        </div>
+      </aside>
 
-        {isSignup && (
+      {/* Right: the form. */}
+      <div className="login-form-col">
+        <form className="login-card" onSubmit={submit}>
+          <h1>{isSignup ? 'Rent a machine' : 'Sign in'}</h1>
+          <p>
+            {isSignup
+              ? 'Create an account to rent a station and fund payouts.'
+              : 'Operations, rentals and settlement.'}
+          </p>
+
+          <div className="seg" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isSignup}
+              className={!isSignup ? 'active' : ''}
+              onClick={() => switchMode('signin')}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isSignup}
+              className={isSignup ? 'active' : ''}
+              onClick={() => switchMode('signup')}
+            >
+              Create account
+            </button>
+          </div>
+
+          {error && <p className="error">{error}</p>}
+
+          {isSignup && (
+            <label className="field">
+              <span>Name or business</span>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.currentTarget.value)}
+                placeholder="Green Foods Pvt Ltd"
+                autoComplete="organization"
+                required
+              />
+            </label>
+          )}
+
           <label className="field">
-            <span>Name or business</span>
+            <span>Email</span>
             <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.currentTarget.value)}
-              placeholder="Green Foods Pvt Ltd"
-              autoComplete="organization"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.currentTarget.value)}
+              autoComplete={isSignup ? 'email' : 'username'}
               required
             />
           </label>
-        )}
 
-        <label className="field">
-          <span>Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
-            autoComplete={isSignup ? 'email' : 'username'}
-            required
-          />
-        </label>
+          {isSignup && (
+            <label className="field">
+              <span>Phone (optional)</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.currentTarget.value)}
+                placeholder="+91 98765 43210"
+                autoComplete="tel"
+              />
+            </label>
+          )}
 
-        {isSignup && (
           <label className="field">
-            <span>Phone (optional)</span>
+            <span>Password</span>
             <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.currentTarget.value)}
-              placeholder="+91 98765 43210"
-              autoComplete="tel"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.currentTarget.value)}
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+              placeholder={isSignup ? 'At least 8 characters' : ''}
+              required
             />
           </label>
-        )}
 
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            autoComplete={isSignup ? 'new-password' : 'current-password'}
-            placeholder={isSignup ? 'At least 8 characters' : ''}
-            required
-          />
-        </label>
+          <button className="btn" type="submit" disabled={busy}>
+            {busy
+              ? isSignup
+                ? 'Creating account…'
+                : 'Signing in…'
+              : isSignup
+                ? 'Create account'
+                : 'Sign in'}
+          </button>
 
-        <button className="btn" type="submit" disabled={busy}>
-          {busy
-            ? isSignup
-              ? 'Creating account…'
-              : 'Signing in…'
-            : isSignup
-              ? 'Create account'
-              : 'Sign in'}
-        </button>
-
-        {isSignup ? (
           <p className="switch">
-            Already have an account?{' '}
-            <button type="button" onClick={() => switchMode('signin')}>
-              Sign in
+            {isSignup ? 'Already have an account? ' : 'Renting a machine? '}
+            <button type="button" onClick={() => switchMode(isSignup ? 'signin' : 'signup')}>
+              {isSignup ? 'Sign in' : 'Create an account'}
             </button>
           </p>
-        ) : (
-          <p className="switch">
-            New here?{' '}
-            <button type="button" onClick={() => switchMode('signup')}>
-              Create an account
-            </button>
-          </p>
-        )}
 
-        {!isSignup && (
-          <p className="hint">
-            Dev logins:
-            <br />
-            admin@uco.local / admin12345
-            <br />
-            renter@uco.local / renter12345
-          </p>
-        )}
-      </form>
+          {!isSignup && (
+            <p className="hint">
+              admin@uco.local · admin12345
+              <br />
+              renter@uco.local · renter12345
+            </p>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

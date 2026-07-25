@@ -135,12 +135,25 @@ export default function WalletPage() {
                         {a.status}
                       </Badge>
                     </td>
+                    {/* A failed payout never left the wallet, so showing it as a
+                        debit next to a FAILED chip would contradict itself. */}
                     <td
                       className="num"
-                      style={{ color: a.kind === 'in' ? 'var(--accent)' : 'var(--text)' }}
+                      style={{
+                        color:
+                          a.status === 'failed'
+                            ? 'var(--faint)'
+                            : a.kind === 'in'
+                              ? 'var(--accent)'
+                              : 'var(--text)',
+                      }}
                     >
-                      {a.kind === 'in' ? '+' : '−'}
-                      {rupees(a.amountPaise)}
+                      {a.status === 'failed'
+                        ? rupees(a.amountPaise)
+                        : `${a.kind === 'in' ? '+' : '−'}${rupees(a.amountPaise)}`}
+                      {a.status === 'failed' && (
+                        <span className="faint" style={{ fontSize: '0.72rem' }}> not taken</span>
+                      )}
                     </td>
                   </tr>
                 ))}
