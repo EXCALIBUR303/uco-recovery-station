@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** UPI IDs are personal data; show only the tail so the list stays readable
@@ -81,5 +81,61 @@ export class DepositorsService {
       recent: d.deposits,
       statusEvents: d.statusEvents,
     };
+  }
+
+  /**
+   * Reinstate a blacklisted depositor (spec §6.2 "managing/reviewing blacklisted
+   * accounts"; open question #1). Refused when the platform's blacklist policy
+   * is 'permanent', so the configured policy is actually enforced rather than
+   * quietly bypassed by an admin click.
+   *
+   * Lifts the UPI-level ban, resets the offence count so the user isn't
+   * re-blacklisted by their next single mistake, and records who did it.
+   */
+  async reinstate(depositorId: string, adminId: string, reason?: string) {
+    const [depositor, settings] = await Promise.all([
+      this.prisma.depositor.findUnique({ where: { id: depositorId } }),
+      this.prisma.platformSettings.findUniqueOrThrow({ where: { id: true } }),
+    ]);
+    if (!depositor) throw new NotFoundException('Unknown depositor');
+    if (depositor.status !== 'blacklisted') return { alreadyActive: true };
+
+    if (settings.blacklistMode === 'permanent') {
+      throw new BadRequestException(
+        'Blacklisting is set to permanent. Change the blacklist policy to allow appeals.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.depositor.update({
+        where: { id: depositorId },
+        data: {
+          status: 'active',
+          offenceCount: 0,
+          blacklistedAt: null,
+          blacklistReason: null,
+        },
+      });
+      await tx.blacklistedUpi.updateMany({
+        where: { upiId: depositor.upiId, liftedAt: null },
+        data: { liftedAt: new Date(), liftedBy: adminId },
+      });
+      await tx.accountStatusEvent.create({
+        data: {
+          depositorId,
+          fromStatus: 'blacklisted',
+          toStatus: 'active',
+          reason: reason?.trim() || 'Reinstated by admin',
+          triggeredBy: `admin:${adminId}`,
+        },
+      });
+      // clear the standing alert for this account
+      await tx.notification.updateMany({
+        where: { depositorId, type: 'blacklist', resolvedAt: null },
+        data: { resolvedAt: new Date() },
+      });
+    });
+
+    return { reinstated: true };
   }
 }

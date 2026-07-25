@@ -8,8 +8,11 @@ export type Reason =
   | 'below_threshold'
   | null;
 
+/** Optional per-renter branding (open question #4); null = identical default. */
+export type Branding = { name: string | null; accent: string | null } | null;
+
 export type StartResponse =
-  | { blocked: true; machineStatus: string; serialNo: string }
+  | { blocked: true; machineStatus: string; serialNo: string; branding: Branding }
   | {
       blocked: false;
       sessionId: string;
@@ -19,6 +22,7 @@ export type StartResponse =
       pairUrl: string;
       pairToken: string;
       expiresAt: string;
+      branding: Branding;
     };
 
 export type SessionState = {

@@ -60,6 +60,7 @@ async function main() {
       email: 'admin@uco.local',
       passwordHash: hashSync('admin12345', 10),
       displayName: 'Company Admin',
+      approvedAt: new Date(),
     },
   });
 
@@ -73,6 +74,9 @@ async function main() {
       passwordHash: hashSync('renter12345', 10),
       displayName: 'Green Foods Pvt Ltd',
       phone: '+919000000001',
+      // pre-approved so the sample rental works out of the box; a real
+      // self-sign-up starts unapproved until an admin approves it
+      approvedAt: new Date(),
     },
   });
 

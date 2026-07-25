@@ -88,6 +88,43 @@ export const api = {
     request<{ paid?: boolean; alreadyPaid?: boolean }>(`/rentals/invoices/${id}/pay`, {
       method: 'POST',
     }),
+  series: (id: string, days = 30) =>
+    request<ActivitySeries>(`/machines/${id}/series?days=${days}`),
+  renters: () => request<RenterRow[]>('/renters'),
+  approveRenter: (id: string) =>
+    request<{ approved?: boolean; alreadyApproved?: boolean }>(`/renters/${id}/approve`, {
+      method: 'POST',
+    }),
+  setRenterBranding: (id: string, brandName: string | null, brandAccent: string | null) =>
+    request<{ brandName: string | null; brandAccent: string | null }>(
+      `/renters/${id}/branding`,
+      { method: 'POST', body: JSON.stringify({ brandName, brandAccent }) },
+    ),
+  assignMachine: (id: string, renterId: string | null, monthlyFeePaise?: number) =>
+    request<{ ownership: string }>(`/machines/${id}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ renterId, monthlyFeePaise }),
+    }),
+  updateMachine: (
+    id: string,
+    patch: { ratePerKgPaise?: number; minWeightDeltaG?: number | null; label?: string },
+  ) =>
+    request<{ ratePerKgPaise: string }>(`/machines/${id}/update`, {
+      method: 'POST',
+      body: JSON.stringify(patch),
+    }),
+  rotateDeviceSecret: (id: string) =>
+    request<{ serialNo: string; deviceSecret: string }>(`/machines/${id}/device-secret`, {
+      method: 'POST',
+    }),
+  reinstateDepositor: (id: string, reason?: string) =>
+    request<{ reinstated?: boolean }>(`/depositors/${id}/reinstate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  settings: () => request<PlatformSettings>('/settings'),
+  updateSettings: (patch: Partial<PlatformSettings>) =>
+    request<PlatformSettings>('/settings', { method: 'POST', body: JSON.stringify(patch) }),
   wallet: () => request<Wallet>('/wallet'),
   topup: (amountPaise: number) =>
     request<{ topupId: string; orderId: string; isMock: boolean }>('/wallet/topup', {
@@ -109,6 +146,39 @@ export type Wallet = {
     machineSerial: string | null;
     createdAt: string;
   }[];
+};
+
+export type ActivitySeries = {
+  days: number;
+  points: { day: string; accepted: number; rejected: number; ignored: number; weightG: number }[];
+};
+
+export type RenterRow = {
+  id: string;
+  displayName: string;
+  email: string;
+  phone: string | null;
+  isActive: boolean;
+  approvedAt: string | null;
+  pending: boolean;
+  brandName: string | null;
+  brandAccent: string | null;
+  createdAt: string;
+  balancePaise: string;
+  heldPaise: string;
+  machines: { id: string; serialNo: string }[];
+  monthlyRentPaise: string;
+};
+
+export type PlatformSettings = {
+  defaultMinWeightDeltaG: number;
+  blacklistThreshold: number;
+  blacklistMode: string;
+  blacklistAutoResetDays: number | null;
+  idleAlertDays: number;
+  activityCountsRejections: boolean;
+  offlineAfterSeconds: number;
+  rentalGraceDays: number;
 };
 
 export type InvoiceStatus = 'due' | 'paid' | 'overdue' | 'waived';

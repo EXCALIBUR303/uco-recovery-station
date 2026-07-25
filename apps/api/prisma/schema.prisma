@@ -160,6 +160,19 @@ model DashboardUser {
   displayName  String        @map("display_name")
   phone        String?
   isActive     Boolean       @default(true) @map("is_active")
+  /// Renter approval (spec §6.2). Self-signed-up renters start unapproved: they
+  /// can sign in and fund a wallet, but cannot be assigned a machine until an
+  /// admin approves them. Admins are approved by definition.
+  approvedAt   DateTime?     @map("approved_at") @db.Timestamptz(6)
+  approvedBy   String?       @map("approved_by") @db.Uuid
+
+  // Optional depositor-facing branding (open question #4). Null on both fields
+  // means the kiosk looks identical regardless of who rents the machine, which
+  // is the default answer; setting them opts that renter into light branding.
+  brandName    String?       @map("brand_name")
+  /// hex colour, e.g. "#7ac943"
+  brandAccent  String?       @map("brand_accent")
+
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -284,6 +297,11 @@ model Machine {
 
   totalWeightG      BigInt @default(0) @map("total_weight_g")
   totalPaidOutPaise BigInt @default(0) @map("total_paid_out_paise")
+
+  /// Device credential for telemetry ingest. The machine sends the raw secret in
+  /// an X-Device-Secret header; only its hash is stored. When set, telemetry is
+  /// rejected without it — so machine status can't be spoofed.
+  deviceSecretHash String? @map("device_secret_hash")
 
   deployedAt DateTime? @map("deployed_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

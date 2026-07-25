@@ -11,6 +11,8 @@ import { DepositorsModule } from './depositors/depositors.module';
 import { StatusModule } from './status/status.module';
 import { RentalsModule } from './rentals/rentals.module';
 import { PaymentsModule } from './payments/payments.module';
+import { RentersModule } from './renters/renters.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { PaymentsModule } from './payments/payments.module';
     StatusModule,
     RentalsModule,
     PaymentsModule,
+    RentersModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
 })

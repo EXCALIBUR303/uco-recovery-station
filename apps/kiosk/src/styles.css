@@ -331,3 +331,20 @@ p {
   font-size: 2.6rem;
   margin: 4vh 0 20px;
 }
+
+/* Optional renter branding strip (open question #4). Absent by default. */
+.brand-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 9px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}

@@ -81,8 +81,8 @@ export function TestPanel({
       )}
       {stage === 'qr' && (
         <p class="muted-small">
-          The QR points at the phone sign-up page, which is not built yet — use
-          Simulate phone scan.
+          Scan the QR with a phone on the same network, or use Simulate phone scan
+          to pair without one.
         </p>
       )}
     </div>

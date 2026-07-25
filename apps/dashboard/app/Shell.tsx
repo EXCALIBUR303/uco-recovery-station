@@ -34,11 +34,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const nav = [
     { href: '/', label: 'Machines' },
     // Depositor roster is admin-only (spec §8 vs §9.2).
-    ...(user.role === 'admin' ? [{ href: '/depositors', label: 'Depositors' }] : []),
+    ...(user.role === 'admin'
+      ? [
+          { href: '/depositors', label: 'Depositors' },
+          // Managing the rental programme is admin-only (spec §6.2).
+          { href: '/renters', label: 'Renters' },
+        ]
+      : []),
     // Both roles see billing; renters see only their own agreements.
     { href: '/rentals', label: user.role === 'admin' ? 'Rentals' : 'Billing' },
     // The payout wallet + top-up is a renter feature (spec §7.3).
     ...(user.role === 'renter' ? [{ href: '/wallet', label: 'Wallet' }] : []),
+    ...(user.role === 'admin' ? [{ href: '/settings', label: 'Settings' }] : []),
   ];
 
   const isActive = (href: string) =>

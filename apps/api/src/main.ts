@@ -11,7 +11,10 @@ import { AppModule } from './app.module';
 };
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // rawBody is required to verify Razorpay webhook signatures, which are an
+  // HMAC over the exact bytes received — re-serialising the parsed JSON would
+  // not reproduce them.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors();
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);

@@ -12,7 +12,12 @@ import {
 } from './screens/Screens';
 import { TestPanel } from './TestPanel';
 
-const MACHINE = import.meta.env.VITE_MACHINE_SERIAL ?? 'UCO-0001';
+// Which machine this screen belongs to. Baked in per deployment; a ?machine=
+// query override makes it possible to check another unit's screen while testing.
+const MACHINE =
+  new URLSearchParams(window.location.search).get('machine') ??
+  import.meta.env.VITE_MACHINE_SERIAL ??
+  'UCO-0001';
 const RESULT_DWELL_MS = 8000; // long enough to read the result (spec §3.8)
 const POLL_MS = 1500;
 
@@ -33,6 +38,7 @@ export function App() {
   const [pairUrl, setPairUrl] = useState('');
   const [machineStatus, setMachineStatus] = useState('in_service');
   const [returning, setReturning] = useState(false);
+  const [brandName, setBrandName] = useState<string | null>(null);
   const [result, setResult] = useState<api.DepositResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +68,16 @@ export function App() {
     try {
       const res = await api.startSession(MACHINE, picked);
       setMachineStatus(res.machineStatus);
+
+      // Optional renter branding (open question #4). Applied by overriding the
+      // accent custom property, so an unbranded machine looks exactly as before.
+      setBrandName(res.branding?.name ?? null);
+      if (res.branding?.accent) {
+        document.documentElement.style.setProperty('--accent', res.branding.accent);
+      } else {
+        document.documentElement.style.removeProperty('--accent');
+      }
+
       if (res.blocked) {
         setStage('unavailable');
         return;
@@ -156,6 +172,7 @@ export function App() {
 
   return (
     <>
+      {brandName && <div class="brand-strip">{brandName}</div>}
       {stage === 'language' && <LanguageScreen onPick={begin} />}
       {stage === 'qr' && <QrScreen t={t} pairUrl={pairUrl} />}
       {stage === 'pour' && <PourScreen t={t} returning={returning} />}

@@ -18,11 +18,17 @@ Following the spec's build order (DESIGN.md §6):
 | 6 | Renter accounts, wallet, scoped view | **done** — renter login, scoped views, rental billing, and payout-wallet top-up (against the mock) |
 | 7 | Idle-machine notifications | **done** (built on the §2 status engine: telemetry ingest, scheduled offline/idle sweeps, in-dashboard alerts) |
 
-**All seven build-order steps are done.** Steps 3 and 6 run against a mock
-Razorpay client until real credentials are set (see "Going live with payments").
-The remaining work before production is real-account integration testing (UPI
-fund-accounts, webhook signatures) and hardware/sensor calibration — not new
-features.
+**All seven build-order steps are done**, plus the admin management actions the
+spec flagged as "implied, to be confirmed during build" (§6.2), the over-time
+charts (§5.1/§6.1), optional renter branding (open question #4), and both
+security gates (webhook signature verification, telemetry device auth).
+
+Two things remain that need something this repo can't supply:
+
+1. **Real Razorpay credentials** — payments run against a mock until they're set
+   (see "Going live with payments"). One-line swap, no code change.
+2. **Sensor calibration numbers** — the accept/reject thresholds are placeholders
+   until measured on the real hardware.
 
 **No _real_ money moves yet.** The full payout path is built and tested, but it
 runs against a **mock** Razorpay client until real credentials are set (see
@@ -40,13 +46,34 @@ RAZORPAY_KEY_SECRET=xxxxxxxx
 RAZORPAYX_ACCOUNT_NUMBER=xxxxxxxx
 ```
 
-Two integration points in `apps/api/src/payments/real-razorpay.client.ts` still
-need testing against a live RazorpayX **test** account (they can't be exercised
-here): resolving a depositor's UPI into a RazorpayX `fund_account`, and webhook
-**signature verification** in `webhook.controller.ts`. Both are marked with
-`NOTE:` in the code. Everything else — the hold→capture/release wallet ledger,
-idempotency, retries, the failure paths — is done and covered by
-`scripts/payout-check.mjs`.
+Webhooks are signature-verified, so also set the webhook secret from the Razorpay
+dashboard — **without it the webhook endpoints reject everything**, deliberately,
+since an unverified money webhook is worse than a missing one:
+
+```bash
+RAZORPAY_WEBHOOK_SECRET=xxxxxxxx
+```
+
+One integration point in `apps/api/src/payments/real-razorpay.client.ts` still
+needs a live RazorpayX **test** account to exercise: resolving a depositor's UPI
+into a RazorpayX `fund_account`. It's marked with `NOTE:` in the code. Everything
+else — the hold→capture/release wallet ledger, idempotency, retries, the failure
+paths, signature verification — is done and covered by `scripts/payout-check.mjs`
+and `scripts/admin-check.mjs`.
+
+## Machine credentials
+
+Telemetry drives machine status, so a machine can be locked to a credential:
+**Machines → pick one → Issue device credential**. The secret is shown once (only
+a hash is stored) and must be flashed into that machine's firmware — after that,
+telemetry without it is rejected. A machine with no credential yet is still
+accepted, so un-provisioned units and local development keep working.
+
+For the dev heartbeat against a provisioned machine:
+
+```bash
+DEVICE_SECRET=<secret> node apps/api/scripts/heartbeat.mjs UCO-0001
+```
 
 ## Layout
 
@@ -203,6 +230,30 @@ rented machine and asserts the hold→capture ledger + failure paths):
 ```bash
 node apps/api/scripts/payout-check.mjs
 ```
+
+Check the admin actions and both security gates (approval, assignment, pricing,
+reinstatement, device auth, webhook signatures, charts, branding):
+
+```bash
+node apps/api/scripts/admin-check.mjs
+```
+
+## Admin capabilities (spec §6.2)
+
+Signed in as an admin:
+
+- **Renters** — approve new sign-ups (a machine can't be assigned until you do),
+  see every renter's wallet balance and monthly rent, and set optional
+  depositor-facing branding.
+- **Machines → a machine** — assign it to a renter (or hand it back to the
+  company), change the payout rate, issue a device credential, and see
+  attempts-per-day / rejected-per-day charts.
+- **Depositors → a blacklisted account** — review an appeal and reinstate, which
+  lifts the UPI ban and resets the offence count. Only possible while the
+  blacklist policy allows appeals.
+- **Settings** — the policies the spec left open: blacklist permanence and
+  threshold, the ignore-vs-offence weight threshold, what counts as activity for
+  the idle check, offline and rental-grace windows.
 
 ### Trying rental billing
 

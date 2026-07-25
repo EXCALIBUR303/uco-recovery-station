@@ -1,6 +1,24 @@
-import { Body, Controller, NotFoundException, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  NotFoundException,
+  Param,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { MachineStatusService } from './machine-status.service';
+
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** Constant-time compare so a wrong secret can't be guessed by timing. */
+function secretMatches(provided: string, expectedHash: string): boolean {
+  const a = Buffer.from(sha256(provided), 'hex');
+  const b = Buffer.from(expectedHash, 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 import type { Prisma } from '@prisma/client';
 
@@ -18,8 +36,11 @@ type TelemetryFrame = {
  * which is what flips a machine to drum_full / reject_full / back to in_service
  * without anyone visiting the site.
  *
- * NOTE: unauthenticated for now. Before deployment each machine needs a device
- * credential (shared secret or mTLS) so telemetry can't be spoofed.
+ * Authentication: a machine with a device secret provisioned must present it in
+ * the X-Device-Secret header, so telemetry — which drives machine status — can't
+ * be spoofed by anyone who knows a serial number. A machine with no secret yet
+ * is accepted, which keeps un-provisioned units and local development working;
+ * rotate a secret from the admin dashboard to lock a machine down.
  */
 @Controller('telemetry')
 export class TelemetryController {
@@ -29,12 +50,22 @@ export class TelemetryController {
   ) {}
 
   @Post(':serialNo')
-  async ingest(@Param('serialNo') serialNo: string, @Body() frame: TelemetryFrame) {
+  async ingest(
+    @Param('serialNo') serialNo: string,
+    @Body() frame: TelemetryFrame,
+    @Headers('x-device-secret') deviceSecret?: string,
+  ) {
     const machine = await this.prisma.machine.findUnique({
       where: { serialNo },
-      select: { id: true },
+      select: { id: true, deviceSecretHash: true },
     });
     if (!machine) throw new NotFoundException(`No machine ${serialNo}`);
+
+    if (machine.deviceSecretHash) {
+      if (!deviceSecret || !secretMatches(deviceSecret, machine.deviceSecretHash)) {
+        throw new UnauthorizedException('Invalid device credential');
+      }
+    }
 
     const now = new Date();
     const drum = clampPct(frame.drumFillPct);

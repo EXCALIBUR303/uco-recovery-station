@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, kg, rupees, ago, type DepositorDetail } from '../../../../lib/api';
 import { REJECTION_LABEL } from '../../../../lib/status';
@@ -10,12 +10,35 @@ export default function DepositorDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const [d, setD] = useState<DepositorDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState('');
 
+  const load = useCallback(
+    () => api.depositor(id).then(setD).catch((e) => setError(e.message)),
+    [id],
+  );
   useEffect(() => {
-    api.depositor(id).then(setD).catch((e) => setError(e.message));
-  }, [id]);
+    load();
+  }, [load]);
 
-  if (error) return <p className="error">{error}</p>;
+  async function reinstate() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.reinstateDepositor(id, reason.trim() || undefined);
+      setNotice('Account reinstated. Their offence count has been reset.');
+      setReason('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reinstate');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (error && !d) return <p className="error">{error}</p>;
   if (!d) return <p className="loading">Loading…</p>;
 
   return (
@@ -37,12 +60,39 @@ export default function DepositorDetailPage({ params }: { params: Promise<{ id: 
         </p>
       </div>
 
+      {error && <p className="error">{error}</p>}
+      {notice && <div className="ok-note">{notice}</div>}
+
       {d.status === 'blacklisted' && (
-        <div className="warn-note">
-          Blacklisted{d.blacklistedAt ? ` ${ago(d.blacklistedAt)}` : ''}
-          {d.blacklistReason ? ` — ${d.blacklistReason}` : ''}. This UPI can no
-          longer transact at any machine.
-        </div>
+        <>
+          <div className="warn-note">
+            Blacklisted{d.blacklistedAt ? ` ${ago(d.blacklistedAt)}` : ''}
+            {d.blacklistReason ? ` — ${d.blacklistReason}` : ''}. This UPI can no
+            longer transact at any machine.
+          </div>
+          <div className="card section">
+            <h2>Review an appeal</h2>
+            <p className="faint" style={{ marginTop: -6 }}>
+              Reinstating lifts the ban on this UPI and resets the offence count, so a
+              single further mistake won't immediately re-blacklist them. Only possible
+              while the blacklist policy allows appeals.
+            </p>
+            <div className="form-row">
+              <label className="field" style={{ flex: 1 }}>
+                <span>Reason (recorded in the account history)</span>
+                <input
+                  type="text"
+                  value={reason}
+                  placeholder="e.g. Appeal upheld — first-time mistake"
+                  onChange={(e) => setReason(e.currentTarget.value)}
+                />
+              </label>
+            </div>
+            <button className="btn compact" disabled={busy} onClick={reinstate}>
+              {busy ? 'Reinstating…' : 'Reinstate account'}
+            </button>
+          </div>
+        </>
       )}
 
       <div className="grid stat-row">

@@ -35,14 +35,28 @@ export class KioskService {
   async startSession(serialNo: string, language?: string) {
     const machine = await this.prisma.machine.findUnique({
       where: { serialNo },
+      include: {
+        renter: { select: { brandName: true, brandAccent: true } },
+      },
     });
     if (!machine) throw new NotFoundException(`No machine ${serialNo}`);
+
+    // Open question #4: identical by default. A rented machine only looks
+    // different if that renter has branding configured by an admin.
+    const branding =
+      machine.renter?.brandName || machine.renter?.brandAccent
+        ? {
+            name: machine.renter.brandName ?? null,
+            accent: machine.renter.brandAccent ?? null,
+          }
+        : null;
 
     if (machine.effectiveStatus !== 'in_service') {
       return {
         blocked: true as const,
         machineStatus: machine.effectiveStatus,
         serialNo: machine.serialNo,
+        branding,
       };
     }
 
@@ -68,6 +82,7 @@ export class KioskService {
       pairUrl: `/join/${pairToken}`,
       pairToken,
       expiresAt: session.pairExpiresAt,
+      branding,
     };
   }
 
