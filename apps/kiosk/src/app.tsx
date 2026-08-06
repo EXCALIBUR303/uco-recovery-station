@@ -4,13 +4,15 @@ import { PHRASES, type LangCode } from './i18n';
 import {
   AcceptedScreen,
   LanguageScreen,
+  MachinePlate,
   PourScreen,
   ProcessingScreen,
   QrScreen,
   RejectedScreen,
+  StepSpine,
   UnavailableScreen,
 } from './screens/Screens';
-import { TestPanel } from './TestPanel';
+import { TestPanel, TEST_PANEL_ON } from './TestPanel';
 
 // Which machine this screen belongs to. Baked in per deployment; a ?machine=
 // query override makes it possible to check another unit's screen while testing.
@@ -30,6 +32,17 @@ type Stage =
   | 'rejected'
   | 'unavailable';
 
+/** Which station on the step spine a given stage belongs to. */
+const STEP_OF: Record<Stage, number> = {
+  language: 0,
+  qr: 1,
+  pour: 2,
+  processing: 2,
+  accepted: 3,
+  rejected: 3,
+  unavailable: 0,
+};
+
 export function App() {
   const [lang, setLang] = useState<LangCode>('en');
   const [stage, setStage] = useState<Stage>('language');
@@ -39,7 +52,9 @@ export function App() {
   const [machineStatus, setMachineStatus] = useState('in_service');
   const [returning, setReturning] = useState(false);
   const [brandName, setBrandName] = useState<string | null>(null);
-  const [ratePerKg, setRatePerKg] = useState<number | null>(null);
+  // Held in paise, not rounded rupees: the accepted-screen docket shows the
+  // exact rate the payout was calculated from, so a depositor can check it.
+  const [ratePaise, setRatePaise] = useState<number | null>(null);
   const [result, setResult] = useState<api.DepositResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +64,18 @@ export function App() {
   const clearTimers = () => {
     timers.current.forEach((id) => clearTimeout(id));
     timers.current = [];
+  };
+
+  /** Renter branding, when configured, repaints the gauge colour. */
+  const applyAccent = (accent: string | null | undefined) => {
+    const root = document.documentElement;
+    if (accent) {
+      root.style.setProperty('--amber', accent);
+      root.style.setProperty('--amber-2', accent);
+    } else {
+      root.style.removeProperty('--amber');
+      root.style.removeProperty('--amber-2');
+    }
   };
 
   /** Back to a clean state for the next person (spec §3.8). */
@@ -73,17 +100,13 @@ export function App() {
       // Optional renter branding (open question #4). Applied by overriding the
       // accent custom property, so an unbranded machine looks exactly as before.
       setBrandName(res.branding?.name ?? null);
-      if (res.branding?.accent) {
-        document.documentElement.style.setProperty('--accent', res.branding.accent);
-      } else {
-        document.documentElement.style.removeProperty('--accent');
-      }
+      applyAccent(res.branding?.accent);
 
       if (res.blocked) {
         setStage('unavailable');
         return;
       }
-      setRatePerKg(Math.round(Number(res.ratePerKgPaise) / 100));
+      setRatePaise(Number(res.ratePerKgPaise));
       setSessionId(res.sessionId);
       setPairToken(res.pairToken);
       // The QR must resolve on the depositor's phone, not the kiosk. In dev the
@@ -111,13 +134,9 @@ export function App() {
         .then((info) => {
           if (!live) return;
           setMachineStatus(info.machineStatus);
-          setRatePerKg(Math.round(Number(info.ratePerKgPaise) / 100));
+          setRatePaise(Number(info.ratePerKgPaise));
           setBrandName(info.branding?.name ?? null);
-          if (info.branding?.accent) {
-            document.documentElement.style.setProperty('--accent', info.branding.accent);
-          } else {
-            document.documentElement.style.removeProperty('--accent');
-          }
+          applyAccent(info.branding?.accent);
         })
         .catch(() => {});
     read();
@@ -149,13 +168,23 @@ export function App() {
     };
   }, [stage, sessionId, reset]);
 
-  // Hold the result on screen, then return to the start.
+  // Hold the result on screen, then return to the start. The dwell bar below is
+  // animated over the same duration so the handover reads as intentional rather
+  // than as the screen crashing mid-read.
   useEffect(() => {
     if (stage !== 'accepted' && stage !== 'rejected') return;
     const id = window.setTimeout(reset, RESULT_DWELL_MS);
     timers.current.push(id);
     return () => clearTimeout(id);
   }, [stage, reset]);
+
+  // Layout flags live on <body> so the fixed plate, spine and dwell bar can all
+  // respond without wrapping the app in an extra positioned element.
+  useEffect(() => {
+    const cl = document.body.classList;
+    cl.toggle('has-brand', !!brandName);
+    cl.toggle('harnessed', TEST_PANEL_ON);
+  }, [brandName]);
 
   const pour = useCallback(
     async (readings: {
@@ -199,42 +228,53 @@ export function App() {
     }
   }, [pairToken]);
 
+  const showSpine = stage !== 'unavailable';
+  const showDwell = stage === 'accepted' || stage === 'rejected';
+
   return (
     <>
       {brandName && <div class="brand-strip">{brandName}</div>}
 
-      {/* Instrument bar: the station identifies itself and its own state, the way
-          a piece of equipment does. Not decoration — it's what a depositor and a
-          passing technician both need to see first. */}
-      <div class="status-bar" style={brandName ? 'top:33px' : undefined}>
-        <div>
-          <div class="k">Station</div>
-          <div class="v">{MACHINE}</div>
-        </div>
-        <div>
-          <div class="k">Rate</div>
-          <div class="v">{ratePerKg != null ? `₹${ratePerKg}/kg` : '—'}</div>
-        </div>
-        <div>
-          <div class="k">Status</div>
-          <div class={`v${machineStatus === 'in_service' ? ' live' : ''}`}>
-            {machineStatus === 'in_service' ? 'READY' : machineStatus.toUpperCase()}
-          </div>
-        </div>
-      </div>
+      <MachinePlate machine={MACHINE} ratePaise={ratePaise} status={machineStatus} />
 
-      {stage === 'language' && <LanguageScreen onPick={begin} />}
+      {stage === 'language' && (
+        <LanguageScreen t={t} ratePaise={ratePaise} onPick={begin} />
+      )}
       {stage === 'qr' && <QrScreen t={t} pairUrl={pairUrl} />}
-      {stage === 'pour' && <PourScreen t={t} returning={returning} />}
+      {stage === 'pour' && (
+        <PourScreen t={t} returning={returning} ratePaise={ratePaise} />
+      )}
       {stage === 'processing' && <ProcessingScreen t={t} />}
       {stage === 'accepted' && result?.amountPaise && (
-        <AcceptedScreen t={t} amountPaise={result.amountPaise} />
+        <AcceptedScreen
+          t={t}
+          amountPaise={result.amountPaise}
+          weightDeltaG={result.weightDeltaG}
+          ratePaise={ratePaise}
+        />
       )}
       {stage === 'rejected' && result && (
-        <RejectedScreen t={t} reason={result.reason} />
+        <RejectedScreen
+          t={t}
+          reason={result.reason}
+          weightDeltaG={result.weightDeltaG}
+        />
       )}
       {stage === 'unavailable' && (
-        <UnavailableScreen t={t} status={machineStatus} />
+        <UnavailableScreen t={t} status={machineStatus} machine={MACHINE} />
+      )}
+
+      {/* Drains in step with RESULT_DWELL_MS above. */}
+      {showDwell && <div class="dwell" />}
+
+      {showSpine && (
+        <StepSpine
+          t={t}
+          active={STEP_OF[stage]}
+          // Only once the outcome is known — the spine must not still promise
+          // "Paid" on a deposit that was turned away.
+          lastLabel={stage === 'rejected' ? t.rejectedTitle : undefined}
+        />
       )}
 
       <TestPanel

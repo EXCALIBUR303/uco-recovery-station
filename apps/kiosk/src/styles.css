@@ -1,32 +1,121 @@
 /* =============================================================================
-   Kiosk — Instrument Panel
+   UCO Recovery Station — kiosk design system: "Weighbridge"
 
-   Runs full-screen on a repurposed used tablet (spec §4), so: no animation
-   libraries, no webfonts, no flexbox `gap` (unsupported on the old Chrome/WebView
-   builds this must tolerate — margins instead), and a hard size budget.
+   ---------------------------------------------------------------------------
+   THE IDEA
+   This machine's entire promise is *fair measurement, made visible*. So the
+   interface is built like a weighbridge or an assay bench: calibrated, lamped,
+   silkscreened, and proud of its numbers. Not an app in a dark theme — a
+   working instrument that happens to have a screen.
 
-   The look is deliberately equipment rather than website: monospace readouts,
-   plate seams, amber gauge light on graphite, zero border-radius. Depositors
-   should read it as a machine that works, not an app.
+   ---------------------------------------------------------------------------
+   TWO VOICES  (the core typographic rule — everything obeys it)
+
+     MACHINE VOICE   monospace · uppercase · tracked · small · dim
+                     Station IDs, rates, weights, timestamps, gate labels,
+                     step numbers. Data the machine is reporting about itself.
+
+     HUMAN VOICE     system sans · sentence case · tight · large · bright
+                     Anything spoken *to* the depositor. Never monospace:
+                     mono faces carry no Devanagari, so Hindi/Marathi silently
+                     fell back to a mismatched font at clipping leading. Speech
+                     lives on the system stack, which resolves to a real
+                     Devanagari-capable face on every target device.
+
+   ---------------------------------------------------------------------------
+   HARD PLATFORM BUDGET  (apps/kiosk/vite.config.ts → chrome 61, android 6)
+   The kiosk runs on repurposed used tablets, so this file must avoid:
+       clamp() min() max()   flex/grid `gap`   :has() :is() :where()
+       inset:   oklch()   backdrop-filter   conic-gradient   aspect-ratio
+   Available and used heavily instead: custom properties, flexbox, transforms,
+   keyframes, layered gradients, font-variant-numeric, filter.
+   Type steps are fixed with a media-query bump rather than fluid; spacing is
+   done with margins rather than gap. No webfonts — zero bytes, works offline.
    ============================================================================= */
 
 :root {
-  --bg: #0d1012;
-  --panel: #151a1c;
-  --panel-2: #1b2124;
-  --field: #0a0d0e;
-  --seam: #252d30;
-  --text: #e6edee;
-  --muted: #9aa8ac;
-  --faint: #7d8a8f;
-  --accent: #ffb020;
-  --on-accent: #140d00;
-  --ok: #4ad07a;
-  --danger: #ff5a45;
-  --warn: #f5851f;
+  /* ---------------------------------------------------------------- palette
+     Graphite ground, amber gauge light. Amber is the money colour and is
+     rationed: the rate, the payout, the active step, the ready lamp. Nothing
+     decorative ever wears it. Green means paid. Red means rejected. */
+  --void: #08090a;
+  --ink: #0d1012;
+  --plate: #14181b;
+  --plate-2: #1b2124;
+  --plate-3: #222a2e;
+  --field: #070909;
 
+  --seam: #262e32;
+  --seam-lit: #38444a;
+
+  /* Text runs brighter than a typical dark UI: kiosks live under hard overhead
+     light and glare eats low-contrast greys. Primary is ~15:1 on --ink. */
+  --text: #f3f7f8;
+  --text-2: #aab7bc;
+  --text-3: #7d8b91;
+
+  --amber: #ffb020;
+  --amber-2: #c97f12;
+  --amber-glow: rgba(255, 176, 32, 0.14);
+  --on-amber: #120b00;
+
+  --green: #35d07f;
+  --green-glow: rgba(53, 208, 127, 0.13);
+  --red: #ff5a45;
+  --red-glow: rgba(255, 90, 69, 0.13);
+
+  /* ------------------------------------------------------------------ type */
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --t-micro: 11px;
+  --t-label: 13px;
+  --t-body: 18px;
+  --t-lead: 21px;
+  --t-h2: 27px;
+  --t-h1: 40px;
+  --t-hero: 72px;
+  --t-mega: 96px;
+
+  --track-micro: 0.2em;
+  --track-label: 0.14em;
+
+  /* Devanagari needs room: matras sit above the cap line and below baseline.
+     Speech leading never goes tighter than this. */
+  --lh-speech: 1.26;
+  --lh-body: 1.5;
+
+  /* --------------------------------------------------------------- spacing */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+
+  /* ---------------------------------------------------------------- motion
+     One easing for entrances (decelerate, confident), one for exits. Durations
+     stay under 400ms: a kiosk queue has no patience for choreography. */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-1: 140ms;
+  --dur-2: 240ms;
+  --dur-3: 340ms;
+}
+
+/* Larger kiosk panels get a genuine step up, not a scale transform. */
+@media (min-width: 1100px) and (min-height: 700px) {
+  :root {
+    --t-body: 19px;
+    --t-lead: 23px;
+    --t-h2: 31px;
+    --t-h1: 48px;
+    --t-hero: 88px;
+    --t-mega: 116px;
+  }
 }
 
 * {
@@ -42,18 +131,34 @@ body,
 }
 
 body {
-  background: var(--bg);
+  background: var(--ink);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 20px;
-  line-height: 1.45;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* faint plate grain — one gradient, no image request */
+/* Machined ground: a vignette so the panel reads as a lit surface with depth,
+   plus a fine horizontal scan grain. Two gradients, no image request. */
 body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(115% 78% at 50% 0%, rgba(255, 176, 32, 0.045) 0%, transparent 62%),
+    radial-gradient(100% 100% at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.5) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+body::after {
   content: "";
   position: fixed;
   top: 0;
@@ -62,8 +167,8 @@ body::before {
   bottom: 0;
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(255, 255, 255, 0.014) 0px,
-    rgba(255, 255, 255, 0.014) 1px,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -71,235 +176,888 @@ body::before {
   z-index: 1;
 }
 
-.screen {
-  position: relative;
-  z-index: 2;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 28px 24px;
-}
-
-/* ------------------------------------------------------------- type */
-h1 {
-  font-family: var(--mono);
-  font-size: 2.4rem;
-  line-height: 1.12;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-h2 {
-  font-size: 1.45rem;
-  margin: 0 0 10px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-p {
-  margin: 0 0 12px;
-  color: var(--muted);
-  max-width: 24em;
-  font-size: 1.05rem;
-}
-
-.eyebrow {
-  font-family: var(--sans);
-  font-size: 0.72rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 18px;
-}
-
-/* --------------------------------------------- top status bar (instrument) */
-.status-bar {
+/* =============================================================================
+   MACHINE PLATE  — the permanent instrument header
+   A riveted silkscreen strip. The station states its own identity and condition
+   the way equipment does, before anyone touches it.
+   ============================================================================= */
+.plate {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 3;
+  z-index: 5;
   display: flex;
+  align-items: stretch;
+  height: 54px;
+  background: linear-gradient(180deg, var(--plate) 0%, #101417 100%);
   border-bottom: 1px solid var(--seam);
-  background: var(--panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
-.status-bar > div {
-  padding: 7px 14px;
+.plate-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--s5);
   border-right: 1px solid var(--seam);
+  min-width: 0;
 }
 
-.status-bar > div:last-child {
+.plate-cell:last-child {
   border-right: 0;
   margin-left: auto;
+  padding-right: var(--s5);
+  align-items: flex-end;
 }
 
-.status-bar .k {
-  font-size: 0.56rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
-.status-bar .v {
+.plate-k {
   font-family: var(--mono);
-  font-size: 0.8rem;
-  margin-top: 1px;
-  color: var(--text);
-}
-
-.status-bar .v.live { color: var(--ok); }
-
-/* -------------------------------------------------------- language buttons */
-.big-btn {
-  display: block;
-  width: 100%;
-  max-width: 440px;
-  min-height: 88px;
-  margin: 0 0 14px;
-  padding: 18px 24px;
-  font-family: var(--sans);
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text);
-  background: var(--panel);
-  border: 1px solid var(--seam);
-  border-left: 3px solid var(--seam);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 120ms, background 120ms, color 120ms;
-}
-
-.big-btn .sub {
-  display: block;
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
+  font-size: 9px;
+  letter-spacing: var(--track-micro);
   text-transform: uppercase;
-  color: var(--faint);
-  margin-top: 3px;
+  color: var(--text-3);
+  line-height: 1;
+  margin-bottom: 5px;
 }
 
-.big-btn:active,
-.big-btn:hover {
-  background: var(--panel-2);
-  border-left-color: var(--accent);
-  color: #fff;
-}
-
-/* ----------------------------------------------------------------- QR plate */
-.qr-frame {
-  background: #fff;
-  padding: 18px;
-  margin: 0 0 22px;
-  line-height: 0;
-  border: 1px solid var(--seam);
-  box-shadow: 0 0 0 1px rgba(255, 176, 32, 0.25), 0 18px 50px rgba(0, 0, 0, 0.5);
-}
-
-.qr-frame svg {
-  display: block;
-  width: 240px;
-  height: 240px;
-}
-
-/* ------------------------------------------------------------------- badge */
-.badge {
-  display: inline-block;
-  padding: 5px 13px;
-  font-family: var(--sans);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin: 0 0 20px;
-  border: 1px solid var(--ok);
-  color: var(--ok);
-}
-
-/* ------------------------------------------------------------------ payout */
-.amount {
+.plate-v {
   font-family: var(--mono);
-  font-size: 4.2rem;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  color: var(--accent);
-  margin: 10px 0 6px;
+  font-size: var(--t-label);
   font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1;
+  white-space: nowrap;
 }
 
-/* result marks: square plates, not friendly circles */
-.mark {
-  width: 92px;
-  height: 92px;
+/* The rate on the plate wears amber — it is money, and it is the one number a
+   passer-by is looking for. */
+.plate-v.rate {
+  color: var(--amber);
+}
+
+.plate-status {
+  display: flex;
+  align-items: center;
+}
+
+/* ------------------------------------------------------------------- lamps
+   A lamp is the one place radius is allowed. Machines have round indicator
+   lights; squaring them would be a costume, not a system. */
+.lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: var(--s2);
+  flex-shrink: 0;
+  background: var(--text-3);
+}
+
+.lamp.ready {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-glow), 0 0 10px rgba(53, 208, 127, 0.5);
+  animation: breathe 2.6s var(--ease-out) infinite;
+}
+
+.lamp.warn {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-glow), 0 0 10px rgba(255, 176, 32, 0.5);
+}
+
+.lamp.bad {
+  background: var(--red);
+  box-shadow: 0 0 0 3px var(--red-glow), 0 0 10px rgba(255, 90, 69, 0.5);
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* Renter branding, when configured. Sits above the plate so the machine's own
+   identity is never displaced by a tenant's. */
+.brand-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.9rem;
-  margin: 0 0 22px;
-  border: 2px solid currentColor;
   font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--amber);
+  background: var(--field);
+  border-bottom: 1px solid var(--seam);
 }
 
-.mark.ok { color: var(--ok); }
-.mark.bad { color: var(--danger); }
-.mark.wait { color: var(--warn); }
+.has-brand .plate { top: 30px; }
 
-.warning {
-  margin: 24px 0 0;
-  padding: 14px 18px;
-  border: 1px solid var(--warn);
-  border-left-width: 3px;
-  color: var(--warn);
-  font-size: 0.98rem;
-  max-width: 28em;
-  background: rgba(245, 133, 31, 0.06);
+/* =============================================================================
+   STAGE  — the screen body between plate and spine
+   ============================================================================= */
+.stage {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: calc(54px + var(--s6)) var(--s7) calc(66px + var(--s5));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-/* ----------------------------------------------------------------- spinner */
-.spinner {
-  width: 58px;
-  height: 58px;
-  border: 3px solid var(--seam);
-  border-top-color: var(--accent);
-  margin: 0 0 24px;
-  animation: spin 0.9s linear infinite;
+.has-brand .stage { padding-top: calc(84px + var(--s6)); }
+
+/* Every stage entrance is the same gesture: rise and resolve.
+   Deliberately ONE animated element per screen rather than a staggered cascade
+   of children. On the used Android tablets this ships to, each animated node is
+   its own composited layer — four of them per transition is real jank on a weak
+   GPU, and the stagger was never worth that. One layer, one gesture. */
+.enter {
+  animation: rise var(--dur-3) var(--ease) both;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .spinner { animation-duration: 2.4s; }
+/* =============================================================================
+   TYPOGRAPHY
+   ============================================================================= */
+
+/* HUMAN VOICE — speech. System sans, never mono (Devanagari coverage). */
+.speak {
+  font-family: var(--sans);
+  font-size: var(--t-h1);
+  font-weight: 700;
+  line-height: var(--lh-speech);
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+  text-transform: none;
 }
 
-/* ---- test panel: stands in for the ESP32 until hardware exists ---- */
+.say {
+  font-family: var(--sans);
+  font-size: var(--t-lead);
+  font-weight: 400;
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  margin: 0;
+  max-width: 30em;
+}
+
+/* MACHINE VOICE — silkscreen label. */
+.stencil {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.stencil.lit { color: var(--amber); }
+
+/* =============================================================================
+   IDLE / LANGUAGE  — a two-column sales surface
+   The old screen was ~85% empty and buried the rate at 12px. This machine has
+   about three seconds to tell a passer-by what it does and what it pays, so the
+   left column is an offer and the rate is architecture.
+   ============================================================================= */
+.split {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.split-offer {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: var(--s8);
+}
+
+.split-choice {
+  flex: 0 0 388px;
+  border-left: 1px solid var(--seam);
+  padding-left: var(--s7);
+}
+
+@media (max-width: 900px) {
+  .split { display: block; }
+  .split-offer { padding-right: 0; margin-bottom: var(--s6); }
+  .split-choice {
+    flex: none;
+    border-left: 0;
+    border-top: 1px solid var(--seam);
+    padding-left: 0;
+    padding-top: var(--s5);
+  }
+  .stage { padding-left: var(--s5); padding-right: var(--s5); }
+}
+
+.offer-title {
+  margin: var(--s4) 0 var(--s6);
+  max-width: 17em;
+}
+
+/* THE RATE — the most persuasive number in the product, treated as such.
+   Baseline-aligned unit, hairline rule above, amber. */
+/* Rule and proof list share the title's measure so the left column reads as one
+   justified block rather than three widths. */
+.rate-block {
+  border-top: 1px solid var(--seam);
+  padding-top: var(--s4);
+  margin-bottom: var(--s6);
+  max-width: 680px;
+}
+
+.proof { max-width: 680px; }
+
+.rate-figure {
+  display: flex;
+  align-items: baseline;
+  margin-top: var(--s3);
+}
+
+.rate-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-mega);
+  font-weight: 500;
+  line-height: 0.86;
+  letter-spacing: -0.045em;
+  color: var(--amber);
+  text-shadow: 0 0 44px rgba(255, 176, 32, 0.28);
+}
+
+.rate-unit {
+  font-family: var(--mono);
+  font-size: var(--t-lead);
+  letter-spacing: 0.02em;
+  color: var(--amber-2);
+  margin-left: var(--s3);
+}
+
+/* Proof points: why this is worth stopping for. Mono, so they read as
+   specifications rather than marketing. */
+.proof {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.proof li {
+  position: relative;
+  padding-left: var(--s5);
+  margin-bottom: var(--s3);
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.proof li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 7px;
+  height: 1px;
+  background: var(--amber);
+}
+
+/* -------------------------------------------------------- language buttons
+   Numbered like rows on a control panel. Full-width in their column, 92px tall
+   (above the 88px glove-friendly floor), with an amber edge that lights on
+   press. The script name leads; the roman name is a machine-voice subtitle so
+   someone who can't yet read the script can still find their row. */
+.lang-list {
+  margin: var(--s4) 0 0;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 92px;
+  margin: 0 0 var(--s3);
+  padding: var(--s4) var(--s5);
+  text-align: left;
+  background: linear-gradient(180deg, var(--plate) 0%, #11151800 100%), var(--plate);
+  border: 1px solid var(--seam);
+  border-left: 3px solid var(--seam-lit);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition:
+    border-left-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.lang-btn:last-child { margin-bottom: 0; }
+
+.lang-index {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin-right: var(--s5);
+  flex-shrink: 0;
+}
+
+.lang-name {
+  display: block;
+  font-size: var(--t-h2);
+  font-weight: 600;
+  line-height: var(--lh-speech);
+  letter-spacing: -0.01em;
+}
+
+.lang-roman {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+
+.lang-btn:hover,
+.lang-btn:focus-visible {
+  background-color: var(--plate-2);
+  border-left-color: var(--amber);
+  outline: none;
+}
+
+.lang-btn:hover .lang-index,
+.lang-btn:focus-visible .lang-index { color: var(--amber); }
+
+.lang-btn:active {
+  background-color: var(--plate-3);
+  border-left-color: var(--amber);
+  transform: translateX(2px);
+}
+
+/* =============================================================================
+   CONNECT (QR)
+   ============================================================================= */
+.qr-row {
+  display: flex;
+  align-items: center;
+  margin-top: var(--s6);
+}
+
+.qr-plate {
+  flex-shrink: 0;
+  position: relative;
+  padding: var(--s4);
+  background: #fff;
+  line-height: 0;
+  margin-right: var(--s8);
+  box-shadow:
+    0 0 0 1px var(--seam),
+    0 0 0 6px var(--field),
+    0 0 0 7px var(--seam),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.qr-plate svg {
+  display: block;
+  width: 236px;
+  height: 236px;
+}
+
+/* Registration marks: machine-vision framing, and they draw the eye to the
+   code without an instructional arrow. */
+.qr-plate::before,
+.qr-plate::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--amber);
+}
+
+.qr-plate::before {
+  top: -13px;
+  left: -13px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.qr-plate::after {
+  bottom: -13px;
+  right: -13px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* Numbered instructions — mono ordinals, sans speech. */
+.steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.steps-list li {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: var(--s5);
+}
+
+.steps-list li:last-child { margin-bottom: 0; }
+
+.steps-n {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  margin-right: var(--s4);
+  flex-shrink: 0;
+}
+
+.steps-t {
+  font-size: var(--t-lead);
+  color: var(--text);
+  line-height: var(--lh-speech);
+}
+
+.fine {
+  font-family: var(--sans);
+  font-size: var(--t-label);
+  color: var(--text-3);
+  margin: var(--s6) 0 0;
+  max-width: 26em;
+}
+
+/* =============================================================================
+   POUR  — physical wayfinding
+   First-timers don't know *where* the intake is. A downward aperture built from
+   chevrons points at the funnel below the screen.
+   ============================================================================= */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--green);
+  border: 1px solid var(--green);
+  background: var(--green-glow);
+}
+
+.pour-wrap {
+  display: flex;
+  align-items: center;
+  margin-top: var(--s6);
+}
+
+.pour-copy { flex: 1 1 0; min-width: 0; }
+
+.aperture {
+  flex: 0 0 140px;
+  margin-left: var(--s8);
+  height: 168px;
+  position: relative;
+}
+
+/* Three chevrons cascading down, offset in time — reads as flow direction. */
+.chev {
+  position: absolute;
+  left: 50%;
+  width: 62px;
+  height: 62px;
+  margin-left: -31px;
+  border-right: 3px solid var(--amber);
+  border-bottom: 3px solid var(--amber);
+  transform: rotate(45deg);
+  animation: fall 2s var(--ease-out) infinite;
+}
+
+.chev.c1 { top: 6px; animation-delay: 0ms; }
+.chev.c2 { top: 46px; animation-delay: 180ms; }
+.chev.c3 { top: 86px; animation-delay: 360ms; }
+
+@keyframes fall {
+  0% { opacity: 0.15; }
+  40% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+
+/* Guardrail: the cheapest way to cut rejections — and every rejection avoided
+   is an offence a person doesn't accrue toward a blacklist. Fairness, not just
+   throughput. */
+.guard {
+  margin-top: var(--s6);
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--seam);
+  border-left: 3px solid var(--amber);
+  background: rgba(255, 176, 32, 0.05);
+}
+
+.guard .stencil { margin-bottom: 5px; }
+
+.guard p {
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--text);
+}
+
+/* =============================================================================
+   PROCESSING  — the assay
+   Not a generic spinner. These three gates *are* the backend classifier
+   (weight → capacitance → colour, see api/src/kiosk/sensor-classifier.ts), so
+   the animation tells the truth about what the machine is doing.
+   ============================================================================= */
+.assay {
+  margin-top: var(--s7);
+  max-width: 560px;
+}
+
+.gate {
+  display: flex;
+  align-items: center;
+  padding: var(--s4) 0;
+  border-bottom: 1px solid var(--seam);
+}
+
+.gate:last-child { border-bottom: 0; }
+
+.gate-lamp {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: var(--s4);
+  flex-shrink: 0;
+  background: var(--seam-lit);
+  animation: gate 1.8s var(--ease-out) infinite;
+}
+
+.gate.g1 .gate-lamp { animation-delay: 0ms; }
+.gate.g2 .gate-lamp { animation-delay: 300ms; }
+.gate.g3 .gate-lamp { animation-delay: 600ms; }
+
+@keyframes gate {
+  0%, 100% { background: var(--seam-lit); box-shadow: none; }
+  25% {
+    background: var(--amber);
+    box-shadow: 0 0 0 3px var(--amber-glow), 0 0 12px rgba(255, 176, 32, 0.6);
+  }
+}
+
+.gate-name {
+  font-family: var(--mono);
+  font-size: var(--t-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* A sweep bar under the assay: motion without a spinner's "please wait" whine. */
+.sweep {
+  position: relative;
+  height: 2px;
+  margin-top: var(--s5);
+  background: var(--seam);
+  overflow: hidden;
+}
+
+.sweep::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  animation: sweep 1.5s var(--ease-out) infinite;
+}
+
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(390%); }
+}
+
+/* =============================================================================
+   RESULT — accepted
+   The docket is the trust payload. The old screen showed only the amount, so a
+   person who poured 2.4 kg had no way to check they were weighed fairly. Now
+   the arithmetic is on screen: weight × rate = paid.
+   ============================================================================= */
+.result-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s5);
+}
+
+.result-head .lamp {
+  width: 12px;
+  height: 12px;
+  margin-right: var(--s3);
+}
+
+.result-label {
+  font-family: var(--mono);
+  font-size: var(--t-label);
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+}
+
+.result-label.paid { color: var(--green); }
+.result-label.no { color: var(--red); }
+
+.payout {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-mega);
+  font-weight: 500;
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  color: var(--amber);
+  margin: 0 0 var(--s2);
+  text-shadow: 0 0 52px rgba(255, 176, 32, 0.3);
+}
+
+.docket {
+  margin-top: var(--s6);
+  max-width: 430px;
+  border-top: 1px solid var(--seam);
+}
+
+.docket-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--seam);
+}
+
+.docket-row.total {
+  border-bottom: 0;
+  border-top: 1px solid var(--seam-lit);
+  padding-top: var(--s4);
+  margin-top: var(--s1);
+}
+
+.docket-k {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.docket-v {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-body);
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.docket-row.total .docket-k { color: var(--text-2); }
+.docket-row.total .docket-v {
+  color: var(--amber);
+  font-size: var(--t-h2);
+}
+
+/* --------------------------------------------------------------- rejected */
+.reason-box {
+  margin-top: var(--s6);
+  padding: var(--s5);
+  border: 1px solid var(--seam);
+  border-left: 3px solid var(--red);
+  background: rgba(255, 90, 69, 0.05);
+  max-width: 40em;
+}
+
+.reason-box p {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-body);
+  color: var(--text-2);
+}
+
+/* A warning, not an accusation — some rejections are honest mistakes. Firm
+   border, calm colour, no alarm iconography. */
+.notice {
+  margin-top: var(--s5);
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--seam);
+  border-left: 3px solid var(--amber);
+  background: rgba(255, 176, 32, 0.05);
+  max-width: 40em;
+}
+
+.notice p {
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--text);
+  line-height: var(--lh-body);
+}
+
+/* The account-restriction warning: separated by a rule so it reads as a
+   consequence of the guidance above it, and set quieter than that guidance —
+   the useful instruction should carry more weight than the threat. */
+.notice-warn {
+  margin-top: var(--s3) !important;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--seam);
+  font-size: var(--t-label) !important;
+  color: var(--text-2) !important;
+}
+
+/* ------------------------------------------------------------ unavailable */
+.hazard {
+  height: 5px;
+  margin-bottom: var(--s6);
+  max-width: 320px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--amber) 0px,
+    var(--amber) 9px,
+    var(--field) 9px,
+    var(--field) 18px
+  );
+}
+
+.hazard.bad {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--red) 0px,
+    var(--red) 9px,
+    var(--field) 9px,
+    var(--field) 18px
+  );
+}
+
+/* =============================================================================
+   STEP SPINE  — position in the flow
+   Anxiety on a kiosk is mostly "how much longer?". Four labelled stations with
+   a filled track answer it without a consumer progress bar.
+   ============================================================================= */
+.spine {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  height: 66px;
+  background: linear-gradient(0deg, var(--plate) 0%, #101417 100%);
+  border-top: 1px solid var(--seam);
+}
+
+.spine-step {
+  flex: 1 1 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--s5);
+  border-right: 1px solid var(--seam);
+  min-width: 0;
+}
+
+.spine-step:last-child { border-right: 0; }
+
+/* 2px track along the top edge of each station; fills amber when reached. */
+.spine-step::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--seam);
+}
+
+.spine-step.done::before { background: var(--amber-2); }
+.spine-step.now::before { background: var(--amber); }
+
+.spine-n {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+.spine-t {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-3);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spine-step.now .spine-n,
+.spine-step.now .spine-t { color: var(--amber); }
+.spine-step.done .spine-t { color: var(--text-2); }
+
+/* ------------------------------------------------------------ dwell timer
+   The result screen used to vanish after 8s with no warning, which reads as a
+   crash. This hairline drains in sync with the reset so the handover is
+   legible as intentional. */
+.dwell {
+  position: fixed;
+  left: 0;
+  bottom: 66px;
+  height: 2px;
+  z-index: 5;
+  background: var(--amber);
+  animation: drain 8s linear both;
+}
+
+@keyframes drain {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* =============================================================================
+   TEST PANEL  — dev harness standing in for the ESP32. Never shipped.
+   Styled to sit visibly *outside* the product: it must never be mistaken for
+   part of the kiosk UI in a screenshot or a demo.
+   ============================================================================= */
 .test-panel {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 3;
-  background: #080a0b;
-  border-top: 1px solid var(--seam);
-  padding: 10px 12px;
+  z-index: 7;
+  background: #000;
+  border-top: 1px dashed var(--seam-lit);
+  padding: var(--s2) var(--s4) var(--s3);
   text-align: left;
-  font-size: 0.8rem;
 }
 
 .test-panel .label {
   font-family: var(--mono);
-  color: var(--faint);
+  color: var(--text-3);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.64rem;
-  margin: 0 0 8px;
+  letter-spacing: var(--track-label);
+  font-size: 9px;
+  margin: 0 0 var(--s2);
 }
 
 .test-row {
@@ -308,98 +1066,137 @@ p {
 }
 
 .test-btn {
-  margin: 0 8px 8px 0;
-  padding: 8px 13px;
-  font-family: var(--sans);
-  font-size: 0.78rem;
-  font-weight: 600;
+  margin: 0 6px 6px 0;
+  padding: 6px 11px;
+  font-family: var(--mono);
+  font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--muted);
-  background: var(--panel);
+  color: var(--text-2);
+  background: var(--plate);
   border: 1px solid var(--seam);
   cursor: pointer;
-  transition: color 120ms, border-color 120ms;
+  transition: color var(--dur-1), border-color var(--dur-1);
 }
 
 .test-btn:hover,
 .test-btn:active {
   color: var(--text);
-  border-color: var(--accent);
+  border-color: var(--amber);
 }
 
 .muted-small {
   font-family: var(--mono);
-  color: var(--faint);
-  font-size: 0.74rem;
-  margin: 0;
+  color: var(--text-3);
+  font-size: 10px;
+  margin: 2px 0 0;
 }
 
-/* ---- phone sign-up page (/join/<token>) ------------------------------------
-   Deliberately the LIGHT register, unlike the kiosk it was scanned from: this
-   is held in a hand outdoors, and a dark screen with an amber accent is hard to
-   read in Indian daylight. Legibility beats visual continuity here.           */
+/* When the harness is mounted it owns the bottom edge; lift the product chrome
+   clear of it so nothing is obscured while testing. */
+.harnessed .spine { bottom: 92px; }
+.harnessed .dwell { bottom: 158px; }
+.harnessed .stage { padding-bottom: calc(158px + var(--s5)); }
+
+/* =============================================================================
+   ACCESSIBILITY
+   ============================================================================= */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* Honour the OS setting: strip travel and looping, keep state changes legible.
+   The dwell bar keeps its duration because it communicates *time remaining* —
+   removing it would remove information, not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .chev,
+  .gate-lamp,
+  .sweep::after,
+  .lamp.ready {
+    animation: none !important;
+  }
+
+  .enter { opacity: 1; transform: none; }
+  .gate-lamp { background: var(--amber); }
+  .chev { opacity: 0.9; }
+
+  .lang-btn { transition: none; }
+}
+
+/* =============================================================================
+   PHONE SIGN-UP  (/join/<token>) — runs on the depositor's phone, not the kiosk
+   Deliberately the LIGHT register. This is held in a hand, often outdoors in
+   Indian daylight, where a dark screen with a thin amber accent is unreadable.
+   Legibility beats visual continuity with the machine it was scanned from.
+   ============================================================================= */
 .join {
   min-height: 100%;
-  background: #e9ebe4;
+  background: #f2f1ea;
   color: #14181a;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 30px 18px calc(30px + env(safe-area-inset-bottom));
+  padding: var(--s6) var(--s4) calc(var(--s6) + env(safe-area-inset-bottom));
   -webkit-user-select: text;
   user-select: text;
+  overflow-y: auto;
 }
 
 .join-card {
   width: 100%;
-  max-width: 420px;
-  margin-top: 5vh;
+  max-width: 430px;
+  margin-top: 4vh;
 }
 
 .join-brand {
-  font-family: var(--sans);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
+  display: flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
   text-transform: uppercase;
   color: #1f5133;
-  margin-bottom: 8px;
+  margin-bottom: var(--s5);
+}
+
+.join-brand::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #cfd4c8;
+  margin-left: var(--s3);
 }
 
 .join-card h1 {
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  font-size: 2.1rem;
-  font-weight: 600;
+  font-family: var(--sans);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: var(--lh-speech);
   letter-spacing: -0.02em;
-  text-transform: none;
   color: #14181a;
-  margin: 0 0 8px;
+  margin: 0 0 var(--s2);
 }
 
-.join-card p {
+.join-card > p {
   color: #4a534b;
-  margin: 0 0 22px;
-  max-width: none;
-  font-size: 0.98rem;
-}
-
-.join-rule {
-  height: 1px;
-  background: #14181a;
-  opacity: 0.85;
-  margin: 18px 0;
+  margin: 0 0 var(--s6);
+  font-size: 16px;
+  line-height: var(--lh-body);
 }
 
 .join-field {
   display: block;
-  margin-bottom: 16px;
+  margin-bottom: var(--s4);
 }
 
 .join-field span {
   display: block;
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: #6a7268;
   margin-bottom: 7px;
@@ -408,7 +1205,9 @@ p {
 .join-field input {
   width: 100%;
   padding: 15px;
-  font-size: 1.05rem; /* >=16px so iOS doesn't zoom on focus */
+  /* >=16px or iOS Safari zooms the viewport on focus and breaks the layout */
+  font-size: 17px;
+  font-family: var(--sans);
   color: #14181a;
   background: #fff;
   border: 1px solid #cfd4c8;
@@ -419,76 +1218,62 @@ p {
 .join-field input:focus {
   outline: none;
   border-color: #1f5133;
-  box-shadow: 0 0 0 1px #1f5133;
+  box-shadow: 0 0 0 2px rgba(31, 81, 51, 0.18);
 }
 
 .join-btn {
   width: 100%;
-  min-height: 56px;
-  margin-top: 8px;
+  min-height: 58px;
+  margin-top: var(--s3);
   font-family: var(--sans);
-  font-size: 0.95rem;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: #fff;
   background: #1f5133;
   border: none;
   cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out);
 }
 
-.join-btn:disabled { opacity: 0.45; }
+.join-btn:active { background: #17402a; }
+.join-btn:disabled { opacity: 0.4; }
 
 .join-btn.secondary {
   color: #14181a;
   background: transparent;
   border: 1px solid #14181a;
-  margin-bottom: 16px;
+  margin-bottom: var(--s4);
 }
 
+.join-btn.secondary:active { background: rgba(0, 0, 0, 0.05); }
+
 .join-error {
-  background: rgba(161, 47, 30, 0.08);
+  background: rgba(161, 47, 30, 0.07);
   border-left: 3px solid #a12f1e;
   color: #a12f1e;
   padding: 11px 14px;
-  font-size: 0.92rem;
-  margin-bottom: 16px;
+  font-size: 15px;
+  margin-bottom: var(--s4);
 }
 
 .join-fine {
-  font-size: 0.82rem;
+  font-size: 14px;
   color: #6a7268;
-  margin-top: 20px;
+  margin-top: var(--s5);
+  line-height: var(--lh-body);
 }
 
 .join-tick {
-  width: 80px;
-  height: 80px;
+  width: 74px;
+  height: 74px;
   border: 2px solid #1f5133;
   color: #1f5133;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.4rem;
+  font-size: 36px;
   font-family: var(--mono);
-  margin: 4vh 0 20px;
-}
-
-/* Optional renter branding strip (open question #4). Absent by default. */
-.brand-strip {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 4;
-  padding: 8px 16px;
-  text-align: center;
-  font-family: var(--sans);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: var(--panel);
-  border-bottom: 1px solid var(--seam);
+  margin: 3vh 0 var(--s5);
+  animation: rise var(--dur-3) var(--ease) both;
 }

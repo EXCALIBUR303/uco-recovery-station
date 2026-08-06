@@ -7,7 +7,10 @@
  */
 type Readings = { capacitance: number; colorValue: number; weightDeltaG: number };
 
-const SHOW = import.meta.env.VITE_TEST_PANEL !== 'off';
+/** Exported so the app can lift its own chrome clear of the harness. */
+export const TEST_PANEL_ON = import.meta.env.VITE_TEST_PANEL !== 'off';
+
+const SHOW = TEST_PANEL_ON;
 
 // Each preset targets one branch of the backend classifier.
 const POURS: { label: string; readings: Readings }[] = [

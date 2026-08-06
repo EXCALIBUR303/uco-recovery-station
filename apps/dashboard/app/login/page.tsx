@@ -60,6 +60,9 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/reoil-logo.png" alt="" aria-hidden="true" className="login-logo" />
+
         <div className="login-figures">
           <div>
             <div className="fk">Recovered</div>
