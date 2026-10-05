@@ -44,7 +44,12 @@ export class TopupService {
       data: { razorpayOrderId: order.orderId },
     });
 
-    return { topupId: topup.id, orderId: order.orderId, isMock: this.razorpay.isMock };
+    return {
+      topupId: topup.id,
+      orderId: order.orderId,
+      isMock: this.razorpay.ordersAreMock,
+      keyId: this.razorpay.keyId,
+    };
   }
 
   /** Mock capture path. */

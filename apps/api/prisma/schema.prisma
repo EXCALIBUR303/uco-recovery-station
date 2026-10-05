@@ -198,6 +198,10 @@ model Depositor {
   ignoredCount    Int             @default(0) @map("ignored_count")
   blacklistedAt   DateTime?       @map("blacklisted_at") @db.Timestamptz(6)
   blacklistReason String?         @map("blacklist_reason")
+  /// cached RazorpayX contact, so a payout doesn't re-register it every time
+  razorpayContactId     String?   @map("razorpay_contact_id")
+  /// cached RazorpayX fund account (VPA), so a payout doesn't re-register it every time
+  razorpayFundAccountId String?   @map("razorpay_fund_account_id")
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -285,8 +289,8 @@ model Machine {
   /// Physical tank sizes, so a fill level can be shown as a real quantity
   /// (47.2 / 60.0 KG) rather than a bare percentage. The reject bucket has a
   /// level sensor only — no load cell — so it is measured in litres.
-  drumCapacityKg  Decimal @default(60) @map("drum_capacity_kg") @db.Decimal(6, 1)
-  bucketCapacityL Decimal @default(20) @map("bucket_capacity_l") @db.Decimal(6, 1)
+  drumCapacityKg  Decimal @default(200) @map("drum_capacity_kg") @db.Decimal(6, 1)
+  bucketCapacityL Decimal @default(200) @map("bucket_capacity_l") @db.Decimal(6, 1)
   /// open question Q3 — per-machine override; null falls back to platform default
   minWeightDeltaG Int?  @map("min_weight_delta_g")
 

@@ -9,55 +9,44 @@ import type {
   RazorpayClient,
 } from './razorpay.client';
 
-/** Emitted after the mock "settles" a payout, so PayoutService can finalise it. */
-export type PayoutSettledEvent = {
-  providerId: string;
-  referenceId: string;
-  outcome: 'processed' | 'failed';
-};
-export const PAYOUT_SETTLED = 'payout.settled';
-
 /** Emitted after the mock "captures" a top-up payment, so TopupService credits. */
 export type TopupSettledEvent = { topupId: string; outcome: 'paid' | 'failed' };
 export const TOPUP_SETTLED = 'topup.settled';
 
 /**
- * Stand-in for RazorpayX used when no real credentials are configured. It
- * accepts the payout (returns "processing", exactly like the real API), then
- * asynchronously emits a settlement event a moment later — modelling RazorpayX's
- * out-of-band webhook, so the kiosk's "paid" screen (shown on acceptance, spec
- * §3.6) is never blocked on settlement.
+ * Stand-in for RazorpayX used when no real credentials are configured.
  *
- * Deterministic failure hook for testing: any UPI on the `@fail` handle settles
- * as failed, so the release-hold path can be exercised without real money.
+ * Payouts do NOT auto-settle: without a real RazorpayX account, nothing pays
+ * the depositor automatically, so the payout is accepted ("processing", same
+ * shape as the real API) and left there for an admin to pay by hand — via
+ * their own UPI app — and confirm through PayoutService.confirmManual /
+ * failManual (see the pending-payouts admin endpoints). This is honest about
+ * the real state of the money rather than pretending it settled.
  */
 @Injectable()
 export class MockRazorpayClient implements RazorpayClient {
-  readonly isMock = true;
+  readonly ordersAreMock = true;
+  readonly payoutsAreMock = true;
+  readonly keyId = null;
   private readonly log = new Logger(MockRazorpayClient.name);
 
   constructor(private readonly events: EventEmitter2) {}
 
   async createPayout(input: CreatePayoutInput): Promise<CreatePayoutResult> {
-    const providerId = `mock_po_${randomBytes(8).toString('hex')}`;
-    const outcome: PayoutSettledEvent['outcome'] = input.upiId.endsWith('@fail')
-      ? 'failed'
-      : 'processed';
+    const providerId = `manual_${randomBytes(8).toString('hex')}`;
 
     this.log.warn(
-      `MOCK payout ${providerId} for ${input.upiId} (${input.amountPaise} paise) — no real money moves; will settle as ${outcome}`,
+      `MANUAL payout ${providerId} for ${input.upiId} (${input.amountPaise} paise) — ` +
+        'no RazorpayX account configured; pay this by hand and confirm it from the admin dashboard.',
     );
 
-    // Settle out-of-band, like a real webhook would arrive.
-    setTimeout(() => {
-      this.events.emit(PAYOUT_SETTLED, {
-        providerId,
-        referenceId: input.referenceId,
-        outcome,
-      } satisfies PayoutSettledEvent);
-    }, 300);
-
-    return { providerId, status: 'processing' };
+    return {
+      providerId,
+      status: 'processing',
+      razorpayContactId: input.razorpayContactId ?? `manual_contact_${randomBytes(6).toString('hex')}`,
+      razorpayFundAccountId:
+        input.razorpayFundAccountId ?? `manual_fa_${randomBytes(6).toString('hex')}`,
+    };
   }
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {

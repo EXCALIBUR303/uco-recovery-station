@@ -105,7 +105,8 @@ export function Alerts() {
     <section className="alerts" aria-label="Alerts">
       <header className="alerts-head">
         <span className="alerts-title">
-          {groups.length} {groups.length === 1 ? 'alert' : 'alerts'}
+          Needs attention
+          <span className="alerts-count">{groups.length}</span>
           {critical > 0 && <span className="alerts-crit">{critical} critical</span>}
         </span>
         <button className="alerts-clear" onClick={dismissAll} disabled={busy === 'all'}>

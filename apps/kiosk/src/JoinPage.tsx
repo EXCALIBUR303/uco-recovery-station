@@ -57,7 +57,7 @@ export function JoinPage({ token }: { token: string }) {
   return (
     <div class="join">
       <div class="join-card">
-        <div class="join-brand">UCO Recovery</div>
+        <div class="join-brand">Cycoil</div>
         <h1>Connect to get paid</h1>
         <p>Enter your details once. Next time it's a single tap.</p>
 

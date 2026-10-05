@@ -1,10 +1,33 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, rupees, ago, type Wallet } from '../../../lib/api';
+import { api, auth, rupees, ago, type Wallet } from '../../../lib/api';
 import { Badge, Stat } from '../../ui';
 
-const PRESETS = [50000, 100000, 500000]; // ₹500, ₹1000, ₹5000 (paise)
+const PRESETS = [10000, 50000, 100000, 500000]; // ₹100, ₹500, ₹1000, ₹5000 (paise)
+
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open(): void };
+  }
+}
+
+let checkoutScript: Promise<void> | null = null;
+
+/** Loads Razorpay's Checkout.js once and reuses it on later top-ups. */
+function loadCheckout(): Promise<void> {
+  if (typeof window !== 'undefined' && window.Razorpay) return Promise.resolve();
+  if (!checkoutScript) {
+    checkoutScript = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Could not load the payment gateway'));
+      document.body.appendChild(script);
+    });
+  }
+  return checkoutScript;
+}
 
 export default function WalletPage() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -23,18 +46,50 @@ export default function WalletPage() {
     setNote(null);
     try {
       const res = await api.topup(amountPaise);
-      if (res.isMock) {
+
+      if (res.isMock || !res.keyId) {
         setNote(
           'Top-up captured on the MOCK gateway — no real payment was taken. ' +
             'With real Razorpay keys this would open Checkout.',
         );
         // The mock captures out-of-band; give it a moment, then refresh.
         await new Promise((r) => setTimeout(r, 700));
+        await load();
+        setBusy(false);
+        return;
       }
-      await load();
+
+      await loadCheckout();
+      const user = auth.user();
+      const checkout = new window.Razorpay({
+        key: res.keyId,
+        order_id: res.orderId,
+        amount: amountPaise,
+        currency: 'INR',
+        name: 'Cycoil',
+        description: 'Wallet top-up',
+        prefill: { name: user?.displayName, email: user?.email },
+        theme: { color: '#2fa7cf' },
+        handler: async () => {
+          // The wallet credits from the server-side webhook, not this callback —
+          // poll briefly so the balance updates without a manual refresh.
+          setNote('Payment received — confirming…');
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 1500));
+            await load();
+          }
+          setNote(null);
+          setBusy(false);
+        },
+        modal: {
+          ondismiss: () => {
+            setBusy(false);
+          },
+        },
+      });
+      checkout.open();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Top-up failed');
-    } finally {
       setBusy(false);
     }
   }
@@ -112,7 +167,7 @@ export default function WalletPage() {
               className="mini-btn"
               disabled={busy}
               onClick={() => addFunds(amt)}
-              style={{ padding: '9px 16px', fontSize: '0.9rem' }}
+              style={{ padding: '9px 16px', fontSize: 'var(--fs-4)' }}
             >
               + {rupees(amt)}
             </button>
@@ -173,7 +228,7 @@ export default function WalletPage() {
                         ? rupees(a.amountPaise)
                         : `${a.kind === 'in' ? '+' : '−'}${rupees(a.amountPaise)}`}
                       {a.status === 'failed' && (
-                        <span className="faint" style={{ fontSize: '0.72rem' }}> not taken</span>
+                        <span className="faint" style={{ fontSize: 'var(--fs-2)' }}> not taken</span>
                       )}
                     </td>
                   </tr>

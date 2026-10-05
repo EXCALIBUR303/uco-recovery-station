@@ -15,6 +15,7 @@ import { STATUS } from '../../lib/status';
 import { StatusDot, StatusLabel } from '../StatusDot';
 import { Gauge } from '../Gauge';
 import { Rolling, Stamp } from '../Numerals';
+import { PendingPayouts } from '../PendingPayouts';
 
 type Filt = 'all' | MachineStatus | 'dormant';
 
@@ -89,6 +90,8 @@ export default function FleetPage() {
         </span>
         <h1>the fleet, right now</h1>
       </div>
+
+      {isAdmin && <PendingPayouts />}
 
       {/* status tally — tabular text on hairlines, not a card grid */}
       <div className="tally">
@@ -169,7 +172,7 @@ export default function FleetPage() {
           ) : (
             <>
               <span className="kicker">§ 02 — station</span>
-              <h1 style={{ fontSize: 'clamp(2.6rem, 5vw, 3.9rem)' }}>
+              <h1 style={{ fontSize: 'var(--fs-display-3)' }}>
                 {current.serialNo.toLowerCase()}
               </h1>
               <p className="dim" style={{ marginTop: 0 }}>

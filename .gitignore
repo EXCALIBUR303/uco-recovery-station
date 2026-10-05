@@ -12,3 +12,5 @@ dist/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+.jez/
+rzp-key.csv

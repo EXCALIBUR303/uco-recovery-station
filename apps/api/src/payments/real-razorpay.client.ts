@@ -24,23 +24,28 @@ export type RazorpayConfig = {
  * handled by WebhookController. That is why the flow uses a hold that is only
  * captured on the webhook, never on this response.
  *
- * NOTE: fetch-based, no SDK dependency. Contact points to verify against the
- * live API before real use: the fund-account/VPA creation step (a UPI payout
- * needs a contact + fund_account), and the exact idempotency header name.
+ * A UPI payout needs a RazorpayX Contact + Fund Account (VPA) resolved first;
+ * createPayout does that (reusing cached ids when the caller has them) before
+ * calling /v1/payouts. This is written against Razorpay's documented Contacts
+ * and Fund Accounts APIs but has NOT been exercised against a live account —
+ * verify against a real RazorpayX test account before trusting it with money,
+ * and check the exact idempotency header name against current docs.
  */
 export class RealRazorpayClient implements RazorpayClient {
-  readonly isMock = false;
+  readonly ordersAreMock = false;
+  readonly payoutsAreMock = false;
+  readonly keyId: string;
   private readonly log = new Logger(RealRazorpayClient.name);
   private readonly auth: string;
 
   constructor(private readonly cfg: RazorpayConfig) {
+    this.keyId = cfg.keyId;
     this.auth = Buffer.from(`${cfg.keyId}:${cfg.keySecret}`).toString('base64');
   }
 
   async createPayout(input: CreatePayoutInput): Promise<CreatePayoutResult> {
-    // A real UPI payout first needs a contact + fund_account (VPA). That setup
-    // is intentionally left as a marked integration point — it needs testing
-    // against a live RazorpayX test account, which isn't available here.
+    const { contactId, fundAccountId } = await this.resolveFundAccount(input);
+
     const res = await fetch('https://api.razorpay.com/v1/payouts', {
       method: 'POST',
       headers: {
@@ -50,12 +55,12 @@ export class RealRazorpayClient implements RazorpayClient {
       },
       body: JSON.stringify({
         account_number: this.cfg.accountNumber,
+        fund_account_id: fundAccountId,
         amount: Number(input.amountPaise),
         currency: 'INR',
         mode: this.cfg.mode ?? 'UPI',
         purpose: 'payout',
         reference_id: input.referenceId,
-        // fund_account_id: <resolved from the depositor's UPI> — see note above
         queue_if_low_balance: false,
       }),
     });
@@ -67,7 +72,64 @@ export class RealRazorpayClient implements RazorpayClient {
     }
 
     const data = (await res.json()) as { id: string };
-    return { providerId: data.id, status: 'processing' };
+    return {
+      providerId: data.id,
+      status: 'processing',
+      razorpayContactId: contactId,
+      razorpayFundAccountId: fundAccountId,
+    };
+  }
+
+  /**
+   * Reuses the depositor's cached contact/fund-account if the caller has one;
+   * otherwise registers both with RazorpayX. A fund account is immutable once
+   * created (a changed UPI ID needs a new one — never mutate in place, since
+   * that could silently redirect an existing depositor's payouts).
+   */
+  private async resolveFundAccount(
+    input: CreatePayoutInput,
+  ): Promise<{ contactId: string; fundAccountId: string }> {
+    if (input.razorpayFundAccountId && input.razorpayContactId) {
+      return { contactId: input.razorpayContactId, fundAccountId: input.razorpayFundAccountId };
+    }
+
+    const contactId = input.razorpayContactId ?? (await this.createContact(input.depositorName));
+    const fundAccountId = await this.createFundAccount(contactId, input.upiId);
+    return { contactId, fundAccountId };
+  }
+
+  private async createContact(name: string): Promise<string> {
+    const res = await fetch('https://api.razorpay.com/v1/contacts', {
+      method: 'POST',
+      headers: { authorization: `Basic ${this.auth}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ name, type: 'vendor' }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      this.log.error(`RazorpayX contact creation failed (${res.status}): ${body}`);
+      throw new Error(`RazorpayX contact rejected: ${res.status}`);
+    }
+    const data = (await res.json()) as { id: string };
+    return data.id;
+  }
+
+  private async createFundAccount(contactId: string, upiId: string): Promise<string> {
+    const res = await fetch('https://api.razorpay.com/v1/fund_accounts', {
+      method: 'POST',
+      headers: { authorization: `Basic ${this.auth}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contact_id: contactId,
+        account_type: 'vpa',
+        vpa: { address: upiId },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      this.log.error(`RazorpayX fund account creation failed (${res.status}): ${body}`);
+      throw new Error(`RazorpayX fund account rejected: ${res.status}`);
+    }
+    const data = (await res.json()) as { id: string };
+    return data.id;
   }
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {

@@ -232,7 +232,7 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="grid stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))' }}>
         <div className="card">
-          <div className="k faint" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>
+          <div className="k faint" style={{ fontSize: 'var(--fs-2)', textTransform: 'uppercase' }}>
             Drum fill
           </div>
           <div style={{ marginTop: 10 }}>
@@ -240,7 +240,7 @@ export default function MachineDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="card">
-          <div className="k faint" style={{ fontSize: '0.75rem', textTransform: 'uppercase' }}>
+          <div className="k faint" style={{ fontSize: 'var(--fs-2)', textTransform: 'uppercase' }}>
             Reject bucket
           </div>
           <div style={{ marginTop: 10 }}>

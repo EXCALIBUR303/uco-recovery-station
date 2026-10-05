@@ -128,10 +128,23 @@ export const api = {
     request<PlatformSettings>('/settings', { method: 'POST', body: JSON.stringify(patch) }),
   wallet: () => request<Wallet>('/wallet'),
   topup: (amountPaise: number) =>
-    request<{ topupId: string; orderId: string; isMock: boolean }>('/wallet/topup', {
-      method: 'POST',
-      body: JSON.stringify({ amountPaise }),
-    }),
+    request<{ topupId: string; orderId: string; isMock: boolean; keyId: string | null }>(
+      '/wallet/topup',
+      { method: 'POST', body: JSON.stringify({ amountPaise }) },
+    ),
+  pendingPayouts: () => request<PendingPayout[]>('/payouts/pending'),
+  confirmPayout: (id: string) => request<{ ok: boolean }>(`/payouts/${id}/confirm`, { method: 'POST' }),
+  failPayout: (id: string) => request<{ ok: boolean }>(`/payouts/${id}/fail`, { method: 'POST' }),
+};
+
+export type PendingPayout = {
+  id: string;
+  upiId: string;
+  amountPaise: string;
+  status: string;
+  createdAt: string;
+  machineSerial: string | null;
+  machineLabel: string | null;
 };
 
 export type Wallet = {

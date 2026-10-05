@@ -6,5 +6,6 @@ import { RentalBillingService } from './rental-billing.service';
 @Module({
   controllers: [RentalsController],
   providers: [RentalsService, RentalBillingService],
+  exports: [RentalBillingService],
 })
 export class RentalsModule {}

@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isSignup = mode === 'signup';
 
@@ -61,7 +62,7 @@ export default function LoginPage() {
         </div>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/reoil-logo.png" alt="" aria-hidden="true" className="login-logo" />
+        <img src="/cycoil-logo.png" alt="" aria-hidden="true" className="login-logo" />
 
         <div className="login-figures">
           <div>
@@ -152,14 +153,36 @@ export default function LoginPage() {
 
           <label className="field">
             <span>Password</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              placeholder={isSignup ? 'At least 8 characters' : ''}
-              required
-            />
+            <div className="field-input-row">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                placeholder={isSignup ? 'At least 8 characters' : ''}
+                required
+              />
+              <button
+                type="button"
+                className="field-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2.5 10s2.8-5.5 7.5-5.5S17.5 10 17.5 10s-2.8 5.5-7.5 5.5S2.5 10 2.5 10z" />
+                    <circle cx="10" cy="10" r="2.4" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2.5 10s2.8-5.5 7.5-5.5S17.5 10 17.5 10s-2.8 5.5-7.5 5.5S2.5 10 2.5 10z" />
+                    <circle cx="10" cy="10" r="2.4" />
+                    <path d="M3 17 17 3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </label>
 
           <button className="btn" type="submit" disabled={busy}>
@@ -178,14 +201,6 @@ export default function LoginPage() {
               {isSignup ? 'Sign in' : 'Create an account'}
             </button>
           </p>
-
-          {!isSignup && (
-            <p className="hint">
-              admin@uco.local · admin12345
-              <br />
-              renter@uco.local · renter12345
-            </p>
-          )}
         </form>
       </div>
     </div>

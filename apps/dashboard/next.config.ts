@@ -8,6 +8,16 @@ const config: NextConfig = {
     const api = process.env.API_ORIGIN ?? 'http://localhost:3010';
     return [{ source: '/api/:path*', destination: `${api}/:path*` }];
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.cycoil.in' }],
+        destination: 'https://cycoil.in/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default config;

@@ -11,6 +11,11 @@ export type CreatePayoutInput = {
   amountPaise: bigint;
   /** our payout id, echoed back on the settlement webhook */
   referenceId: string;
+  /** label only — shown in the RazorpayX dashboard's contact list, not to the depositor */
+  depositorName: string;
+  /** cached from a previous payout, if any — skips re-registering the contact/VPA */
+  razorpayContactId?: string | null;
+  razorpayFundAccountId?: string | null;
 };
 
 export type CreatePayoutResult = {
@@ -18,6 +23,9 @@ export type CreatePayoutResult = {
   providerId: string;
   /** payout is accepted and in flight — not yet settled */
   status: 'processing';
+  /** resolved (created or reused) this call — caller should cache these on the depositor */
+  razorpayContactId: string;
+  razorpayFundAccountId: string;
 };
 
 export type CreateOrderInput = {
@@ -32,8 +40,17 @@ export type CreateOrderResult = {
 };
 
 export interface RazorpayClient {
-  /** Whether this is the mock (no real money moves). Surfaced to the UI. */
-  readonly isMock: boolean;
+  /**
+   * Orders (Checkout/top-ups) and payouts (RazorpayX) are separate Razorpay
+   * products with separate readiness — a deployment can have real order
+   * creation live while payouts are still mocked (no RazorpayX account yet).
+   * Each is surfaced separately so neither UI nor logs ever call a mocked
+   * payout "real" just because orders are.
+   */
+  readonly ordersAreMock: boolean;
+  readonly payoutsAreMock: boolean;
+  /** Public key id for Checkout.js on the frontend. Null when orders are mocked. */
+  readonly keyId: string | null;
   /** RazorpayX payout to a depositor's UPI. */
   createPayout(input: CreatePayoutInput): Promise<CreatePayoutResult>;
   /** Razorpay Checkout order for a renter wallet top-up. */

@@ -1,11 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, auth, type Machine, type SessionUser } from '../lib/api';
 import { Alerts } from './Alerts';
 import { CommandPalette, type Command } from './CommandPalette';
+import {
+  IconMachines,
+  IconDepositors,
+  IconRenters,
+  IconRentals,
+  IconWallet,
+  IconSettings,
+  IconBilling,
+} from './NavIcons';
 
 /**
  * Client-side auth gate plus the app chrome. Real enforcement is on the API —
@@ -63,16 +72,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const nav = useMemo(() => {
     if (!user) return [];
     return [
-      { href: '/', label: 'Machines' },
+      { href: '/', label: 'Machines', icon: IconMachines, group: 'Fleet' },
       ...(user.role === 'admin'
         ? [
-            { href: '/depositors', label: 'Depositors' },
-            { href: '/renters', label: 'Renters' },
+            { href: '/depositors', label: 'Depositors', icon: IconDepositors, group: 'Accounts' },
+            { href: '/renters', label: 'Renters', icon: IconRenters, group: 'Accounts' },
           ]
         : []),
-      { href: '/rentals', label: user.role === 'admin' ? 'Rentals' : 'Billing' },
-      ...(user.role === 'renter' ? [{ href: '/wallet', label: 'Wallet' }] : []),
-      ...(user.role === 'admin' ? [{ href: '/settings', label: 'Settings' }] : []),
+      {
+        href: '/rentals',
+        label: user.role === 'admin' ? 'Rentals' : 'Billing',
+        icon: user.role === 'admin' ? IconRentals : IconBilling,
+        group: 'Billing',
+      },
+      ...(user.role === 'renter' ? [{ href: '/wallet', label: 'Wallet', icon: IconWallet, group: 'Billing' }] : []),
+      ...(user.role === 'admin' ? [{ href: '/settings', label: 'Settings', icon: IconSettings, group: 'System' }] : []),
     ];
   }, [user]);
 
@@ -103,7 +117,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className={`sidebar${drawer ? ' open' : ''}`}>
         <div className="brand">
-          UCO Recovery
+          Cycoil
           <small>{user.role === 'admin' ? 'Operations' : 'Renter'}</small>
         </div>
 
@@ -128,11 +142,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav">
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} className={isActive(n.href) ? 'active' : ''}>
-              {n.label}
-            </Link>
-          ))}
+          {nav.map((n, i) => {
+            const Icon = n.icon;
+            const showGroup = n.group !== nav[i - 1]?.group;
+            return (
+              <Fragment key={n.href}>
+                {showGroup && <div className="nav-group-label">{n.group}</div>}
+                <Link href={n.href} className={isActive(n.href) ? 'active' : ''}>
+                  <Icon />
+                  {n.label}
+                </Link>
+              </Fragment>
+            );
+          })}
         </nav>
 
         <div className="sidebar-foot">

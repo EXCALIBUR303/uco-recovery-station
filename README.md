@@ -1,4 +1,4 @@
-# UCO Recovery Station
+# Cycoil (UCO Recovery Station)
 
 Kiosk app, dashboard, and shared backend for the used-cooking-oil recovery machine.
 

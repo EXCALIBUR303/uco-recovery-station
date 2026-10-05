@@ -4,6 +4,7 @@ import { PayoutService } from './payout.service';
 import { TopupService } from './topup.service';
 import { WebhookController } from './webhook.controller';
 import { WalletController } from './wallet.controller';
+import { PayoutsController } from './payouts.controller';
 import { razorpayProvider } from './razorpay.provider';
 import { StatusModule } from '../status/status.module';
 
@@ -14,7 +15,7 @@ import { StatusModule } from '../status/status.module';
  */
 @Module({
   imports: [StatusModule],
-  controllers: [WebhookController, WalletController],
+  controllers: [WebhookController, WalletController, PayoutsController],
   providers: [WalletService, PayoutService, TopupService, razorpayProvider],
   exports: [WalletService, PayoutService],
 })

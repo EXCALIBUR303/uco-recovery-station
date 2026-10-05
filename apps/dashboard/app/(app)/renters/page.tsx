@@ -99,7 +99,7 @@ export default function RentersPage() {
               <tr key={r.id}>
                 <td>
                   <strong>{r.displayName}</strong>
-                  <div className="faint" style={{ fontSize: '0.8rem' }}>
+                  <div className="faint" style={{ fontSize: 'var(--fs-3)' }}>
                     {r.email} · joined {ago(r.createdAt)}
                   </div>
                 </td>

@@ -1,9 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService, InsufficientFundsError } from './wallet.service';
 import { RAZORPAY_CLIENT, type RazorpayClient } from './razorpay.client';
-import { PAYOUT_SETTLED, type PayoutSettledEvent } from './mock-razorpay.client';
 
 /**
  * Owns the money lifecycle of an accepted deposit (DESIGN.md §3.6):
@@ -28,7 +26,7 @@ export class PayoutService {
   ) {}
 
   get usingMock(): boolean {
-    return this.razorpay.isMock;
+    return this.razorpay.payoutsAreMock;
   }
 
   /**
@@ -56,7 +54,7 @@ export class PayoutService {
     if (existing) {
       return {
         status: existing.status === 'failed' ? 'failed' : 'processing',
-        isMock: this.razorpay.isMock,
+        isMock: this.razorpay.payoutsAreMock,
       };
     }
 
@@ -87,7 +85,7 @@ export class PayoutService {
     } catch (e) {
       if (e instanceof InsufficientFundsError) {
         await this.recordUnfundable(deposit.id, deposit.depositorId, walletId, amount, deposit.machine.fundingWalletId);
-        return { status: 'failed', reason: 'insufficient_funds', isMock: this.razorpay.isMock };
+        return { status: 'failed', reason: 'insufficient_funds', isMock: this.razorpay.payoutsAreMock };
       }
       throw e;
     }
@@ -99,12 +97,32 @@ export class PayoutService {
         upiId: deposit.depositor.upiId,
         amountPaise: amount,
         referenceId: payoutId,
+        depositorName: deposit.depositor.phone,
+        razorpayContactId: deposit.depositor.razorpayContactId,
+        razorpayFundAccountId: deposit.depositor.razorpayFundAccountId,
       });
       await this.prisma.payout.update({
         where: { id: payoutId },
         data: { status: 'processing', razorpayxPayoutId: res.providerId },
       });
-      return { status: 'processing', isMock: this.razorpay.isMock };
+      // Cache the resolved contact/fund-account so the next payout to this
+      // depositor skips re-registering them. Best-effort: if this write fails,
+      // the payout already succeeded above — the next payout just re-resolves.
+      if (
+        res.razorpayContactId !== deposit.depositor.razorpayContactId ||
+        res.razorpayFundAccountId !== deposit.depositor.razorpayFundAccountId
+      ) {
+        await this.prisma.depositor
+          .update({
+            where: { id: deposit.depositorId },
+            data: {
+              razorpayContactId: res.razorpayContactId,
+              razorpayFundAccountId: res.razorpayFundAccountId,
+            },
+          })
+          .catch((e) => this.log.warn(`failed to cache RazorpayX fund account: ${String(e)}`));
+      }
+      return { status: 'processing', isMock: this.razorpay.payoutsAreMock };
     } catch (e) {
       // Provider rejected the request outright — release the hold, mark failed.
       this.log.error(`createPayout failed for ${payoutId}: ${String(e)}`);
@@ -116,7 +134,7 @@ export class PayoutService {
         });
       });
       await this.alertPayoutFailed(deposit.machine.fundingWalletId, payoutId);
-      return { status: 'failed', reason: 'provider_rejected', isMock: this.razorpay.isMock };
+      return { status: 'failed', reason: 'provider_rejected', isMock: this.razorpay.payoutsAreMock };
     }
   }
 
@@ -132,10 +150,23 @@ export class PayoutService {
     await this.finalize(payout.id, outcome);
   }
 
-  /** Mock settlement path (same finalisation, different trigger). */
-  @OnEvent(PAYOUT_SETTLED)
-  async onMockSettled(e: PayoutSettledEvent): Promise<void> {
-    await this.finalize(e.referenceId, e.outcome);
+  /** Payouts an admin still needs to pay by hand and confirm — anything not yet terminal. */
+  async listPending() {
+    return this.prisma.payout.findMany({
+      where: { status: { in: ['pending', 'processing'] } },
+      orderBy: { createdAt: 'asc' },
+      include: { deposit: { select: { machine: { select: { serialNo: true, label: true } } } } },
+    });
+  }
+
+  /** Admin confirms they paid this depositor by hand. */
+  async confirmManual(payoutId: string): Promise<void> {
+    await this.finalize(payoutId, 'processed');
+  }
+
+  /** Admin marks a payout as not going through (bad/unreachable UPI, etc). */
+  async failManual(payoutId: string): Promise<void> {
+    await this.finalize(payoutId, 'failed');
   }
 
   /**
