@@ -1,6 +1,6 @@
 # Cycoil (UCO Recovery Station)
 
-Kiosk app, dashboard, and shared backend for the used-cooking-oil recovery machine.
+Kiosk app, dashboard, and shared backend for the used-cooking-oil recovery machine..
 
 See [DESIGN.md](DESIGN.md) for the schema, machine state machine, and fraud-flow design.
 
